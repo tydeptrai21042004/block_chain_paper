@@ -1,0 +1,6 @@
+{
+  "constant_query_cycles": null,
+  "query_fixed_overhead_cycles": 0,
+  "merkle_leaf_count": 13,
+  "notes": "Synthetic sanity-check configuration; never cite demo outputs in the manuscript."
+}

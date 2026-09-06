@@ -1,0 +1,16 @@
+[package]
+name = "cellvg-ckb-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+ckb-std = { version = "1.1.0", default-features = false }
+ckb-hash = { version = "1.1.1", default-features = false, features = ["ckb-contract"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+overflow-checks = false

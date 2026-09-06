@@ -1,0 +1,6 @@
+{
+  "constant_query_cycles": null,
+  "query_fixed_overhead_cycles": 0,
+  "merkle_leaf_count": 13,
+  "notes": "Real experiment configuration. If constant_query_cycles is null, query cost is read from query_costs_template.csv at depth ceil(log2(merkle_leaf_count))."
+}

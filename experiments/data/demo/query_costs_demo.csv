@@ -1,0 +1,9 @@
+depth,cycles,witness_bytes,source,notes
+1,8.0,32,synthetic-demo,NOT FOR MANUSCRIPT
+2,10.0,64,synthetic-demo,NOT FOR MANUSCRIPT
+3,12.0,96,synthetic-demo,NOT FOR MANUSCRIPT
+4,14.0,128,synthetic-demo,NOT FOR MANUSCRIPT
+5,16.0,160,synthetic-demo,NOT FOR MANUSCRIPT
+6,18.0,192,synthetic-demo,NOT FOR MANUSCRIPT
+7,20.0,224,synthetic-demo,NOT FOR MANUSCRIPT
+8,22.0,256,synthetic-demo,NOT FOR MANUSCRIPT
