@@ -70,7 +70,7 @@ def parse_lenet_directory(
                 "native_cycles": "" if c is None else c,
                 "zk_cycles": "",
                 "source": "ckb-debugger",
-                "notes": f"deterministic LeNet arithmetic block; raw log {path.name}",
+                "notes": f"state-chained deterministic LeNet interval; raw log {path.name}",
             }
         )
 

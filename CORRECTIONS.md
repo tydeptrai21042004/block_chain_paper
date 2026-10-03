@@ -1,43 +1,78 @@
-# Corrections in this revision
+# Revision change log
 
-## Code
+This revision addresses both reviewer comments and the experimental weaknesses
+identified during artifact inspection.
 
-- Fixed root-level unit-test imports (`python -m unittest discover -s experiments/tests -v` now works directly).
-- Added validation for model size, intervals, terminal costs, query costs, split indices, policies, Merkle configuration, duplicate CSV rows, span mismatches, and negative/NaN costs.
-- Added numerical tie tolerance to HNDT while preserving settlement-on-tie behavior.
-- Made split tie-breaking deterministic: fewer rounds, closer to midpoint, then smaller index.
-- Made the `Operator midpoint + ZK` baseline strict: it is included only if every atomic interval has a finite zkVM measurement.
-- Corrected summary statistics so leaf-size/backend counts use unique terminal intervals rather than weighting leaves by the number of fault positions they contain.
-- Added `fault_position = fault_index + 1` to exported fault CSVs to match manuscript notation.
-- Strengthened homogenization: preserve the measured interval residual and fail if the reconstructed cost becomes negative instead of silently clipping it.
-- Made CKB parsers strict by default and validated the complete 42-interval LeNet measurement set.
-- Cleared stale benchmark logs before new runs.
-- Added `ckb_bench/build.rs` so Cargo rebuilds when compile-time benchmark-selection environment variables change.
+## P0 benchmark corrections
 
-## Tests
+### Merkle authentication
 
-The project now contains **46 Python unit tests**, covering:
+- supplied sibling digests are no longer hashed inside the measured proof loop;
+- verification performs one parent CKB-Blake2b hash per level;
+- left/right ordering uses the actual leaf-index bits;
+- the publication tree contains 13 real leaves padded to 16 with zero digests;
+- all 13 real proofs reconstruct one known root;
+- proof-data memory access is measured separately from parent hashing.
 
-- Bellman optimality examples and theorem-level monotonicity;
-- homogeneous bisection and non-midpoint optima;
-- direct settlement and unavailable queries;
-- exhaustive enumeration on many random instances with `n <= 5`;
-- fixed-granularity and midpoint baselines;
-- strict zkVM baseline availability;
-- fault-path traversal and policy validation;
-- summary statistics;
-- trace, interval-cost, query-cost, and config validation;
-- CKB debugger log parsing and 42-interval completeness;
-- heterogeneity-ablation reconstruction.
+### Neural interval verification
 
-`run_tests.sh` / `run_tests.ps1` also execute a synthetic end-to-end integration smoke test after the unit suite.
+The previous `bench_lenet_block()` summed independent operator-shaped workloads.
+That did not satisfy the paper's trace semantics `S_t=f_t(S_{t-1})`.
 
-## Manuscript hierarchy
+The replacement:
 
-The five main sections are unchanged. Numbered subsection count was reduced to:
+- generates one deterministic integer input and fixed quantized weights;
+- constructs exact checkpoints `S0...S12` with canonical LeNet-5 dimensions;
+- versions the generated checkpoint/weight source in the repository;
+- verifies all 42 measured span-1..4 intervals in the generator tests;
+- makes the CKB benchmark load `S_i`, execute the real operator chain, and
+  require exact equality with `S_j`.
 
-- Section 2: 3 subsections;
-- Section 3: 3 subsections;
-- Section 4: 4 subsections.
+## Paper-grounded comparison corrections
 
-All former `subsubsection` headings and most small subsection headings are now simple bold lead-ins. Detailed theorem proofs and all blank experimental forms are retained.
+The repository now avoids overstating baseline reproduction:
+
+- **Arbitrum-IVP** is explicitly a common-trace structural adaptation;
+- **opML** is explicitly **Phase-1/operator localization only**; no unmeasured
+  microinstruction phase is fabricated;
+- **Agatha-GPP** is explicitly a **chain projection** of the graph-based
+  pinpoint protocol; general DAG/XCE behavior is not claimed.
+
+Because the three comparable localization components collapse to the same tree
+on the current ordered trace, the main table deduplicates them into one
+`Prior-work midpoint/pinpoint family`. Individual provenance and summaries are
+still exported.
+
+## Method improvement
+
+The original HNDT Bellman equation is retained. The extension is intentionally
+minimal and exact:
+
+```text
+F_0(i,j) = A(i,j)
+F_r(i,j) = min(
+    A(i,j),
+    min_k q(i,j,k) + max(F_{r-1}(i,k), F_{r-1}(k,j))
+)
+```
+
+`F_r` is the exact optimum under a hard worst-case split-round budget. It yields
+an interpretable cost--interaction frontier without inventing a latency weight.
+
+The experiment also adds two exact mechanism-isolation restrictions:
+
+- adaptive split + atomic stop;
+- midpoint split + adaptive stop.
+
+Together with HNDT and the prior-work family, these form a clean 2x2 test of the
+two novel decisions.
+
+## Auditability improvements
+
+- oracle best fixed-`g` comparator;
+- duplicate literature-policy grouping;
+- explicit skipped-strategy status;
+- policy JSON for every executed strategy;
+- HNDT action margin to the best alternative decision;
+- exact round-budget frontier;
+- synchronized manuscript terminology and validation design.

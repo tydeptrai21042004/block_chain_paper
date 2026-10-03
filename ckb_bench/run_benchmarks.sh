@@ -15,6 +15,8 @@ if ! command -v ckb-debugger >/dev/null 2>&1; then
   exit 1
 fi
 
+python3 "$ROOT/generate_merkle_vectors.py" --check
+
 # The modern ckb-std build path uses Rust atomic lowering for CKB-VM compatibility.
 export RUSTFLAGS="${RUSTFLAGS:-} -C passes=lower-atomic"
 TARGET="riscv64imac-unknown-none-elf"
@@ -24,7 +26,7 @@ run_one() {
   local size="$2"
   local tag="${kind}_${size}"
   echo "==> $tag"
-  BENCH_KIND="$kind" BENCH_SIZE="$size" cargo build \
+  BENCH_KIND="$kind" BENCH_SIZE="$size" BENCH_LEAF_INDEX="6" cargo build \
     --manifest-path "$ROOT/Cargo.toml" --release --target "$TARGET" >/dev/null
   local bin="$ROOT/target/$TARGET/release/cellvg-ckb-bench"
   ckb-debugger --bin "$bin" 2>&1 | tee "$LOG_DIR/$tag.log"
@@ -35,6 +37,7 @@ for n in 16 32 64 128 256; do run_one dot "$n"; done
 for n in 8 16 24 32; do run_one gemm "$n"; done
 for n in 8 16 24 32; do run_one conv "$n"; done
 for n in 3 4 5 6 7 8; do run_one merkle "$n"; done
+for n in 3 4 5 6 7 8; do run_one merkle_access "$n"; done
 
 python3 "$ROOT/parse_logs.py" --logs "$LOG_DIR" --out "$ROOT/ckb_primitive_measurements.csv"
 echo "Measurements: $ROOT/ckb_primitive_measurements.csv"

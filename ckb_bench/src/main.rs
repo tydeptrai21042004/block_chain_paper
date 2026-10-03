@@ -1,9 +1,20 @@
 #![no_std]
 #![no_main]
 
+mod merkle_vectors;
+mod lenet_vectors;
+
 use ckb_hash::blake2b_256;
 use ckb_std::entry;
 use core::ptr::{addr_of_mut, write_volatile};
+use merkle_vectors::{
+    CANONICAL_DEPTH, CANONICAL_LEAF_COUNT, CANONICAL_LEAVES, CANONICAL_PROOFS,
+    CANONICAL_ROOT, GENERIC_SIBLINGS,
+};
+use lenet_vectors::{
+    checkpoint_matches, load_checkpoint, CONV1_B, CONV1_W, CONV2_B, CONV2_W,
+    FC1_B, FC1_W, FC2_B, FC2_W, FC3_B, FC3_W, LENET_MAX_STATE, LENET_STATE_LENS,
+};
 
 entry!(program_entry);
 
@@ -90,120 +101,313 @@ fn bench_conv(side: usize) -> i64 {
     checksum
 }
 
+#[inline(always)]
+fn hash_pair(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
+    let mut pair = [0u8; 64];
+    pair[..32].copy_from_slice(left);
+    pair[32..].copy_from_slice(right);
+    blake2b_256(&pair)
+}
+
+/// Verify an already-hashed Merkle leaf against a supplied authentication path.
+///
+/// Sibling digests are inputs to verification.  The verifier therefore performs
+/// exactly one parent hash per proof level.  Left/right ordering follows the
+/// actual leaf-index bit at each level.
 #[inline(never)]
-fn bench_merkle(depth: usize) -> i64 {
-    let d = if depth == 0 { 1 } else if depth > 32 { 32 } else { depth };
-    let mut current = blake2b_256(b"cellvg-leaf");
-    for level in 0..d {
-        let mut sibling_seed = [0u8; 16];
-        for (i, b) in sibling_seed.iter_mut().enumerate() {
-            *b = (level as u8).wrapping_mul(17).wrapping_add(i as u8);
-        }
-        let sibling = blake2b_256(&sibling_seed);
-        let mut pair = [0u8; 64];
-        if level % 2 == 0 {
-            pair[..32].copy_from_slice(&current);
-            pair[32..].copy_from_slice(&sibling);
+fn verify_merkle_path(
+    leaf_hash: [u8; 32],
+    leaf_index: usize,
+    siblings: &[[u8; 32]],
+) -> [u8; 32] {
+    let mut current = leaf_hash;
+    for (level, sibling) in siblings.iter().enumerate() {
+        current = if ((leaf_index >> level) & 1) == 0 {
+            hash_pair(&current, sibling)
         } else {
-            pair[..32].copy_from_slice(&sibling);
-            pair[32..].copy_from_slice(&current);
-        }
-        current = blake2b_256(&pair);
+            hash_pair(sibling, &current)
+        };
     }
+    current
+}
+
+#[inline(never)]
+fn bench_merkle_access(depth: usize, leaf_index: usize) -> i64 {
+    // Separate in-memory proof-access microbenchmark.  This intentionally does
+    // no hashing, so it can be reported independently from authentication work.
+    // It is not a substitute for measuring real witness syscalls/decoding.
+    let d = if depth == 0 {
+        1
+    } else if depth > GENERIC_SIBLINGS.len() {
+        GENERIC_SIBLINGS.len()
+    } else {
+        depth
+    };
+
+    let mut checksum = 0i64;
+    if d == CANONICAL_DEPTH && leaf_index < CANONICAL_LEAF_COUNT {
+        for (level, sibling) in CANONICAL_PROOFS[leaf_index].iter().enumerate() {
+            for (byte_index, byte) in sibling.iter().enumerate() {
+                let weight = ((level * 32 + byte_index + 1) as i64).wrapping_mul(17);
+                checksum = checksum.wrapping_add((*byte as i64).wrapping_mul(weight));
+            }
+        }
+    } else {
+        for (level, sibling) in GENERIC_SIBLINGS[..d].iter().enumerate() {
+            for (byte_index, byte) in sibling.iter().enumerate() {
+                let weight = ((level * 32 + byte_index + 1) as i64).wrapping_mul(17);
+                checksum = checksum.wrapping_add((*byte as i64).wrapping_mul(weight));
+            }
+        }
+    }
+    checksum
+}
+
+#[inline(never)]
+fn bench_merkle(depth: usize, leaf_index: usize) -> i64 {
+    // The publication experiment uses depth=4 because 13 committed states are
+    // padded to 16 leaves.  For that case, validate against a known correct root.
+    // Other depths are a hash-scaling microbenchmark with pre-supplied siblings.
+    let d = if depth == 0 {
+        1
+    } else if depth > GENERIC_SIBLINGS.len() {
+        GENERIC_SIBLINGS.len()
+    } else {
+        depth
+    };
+
+    let current = if d == CANONICAL_DEPTH && leaf_index < CANONICAL_LEAF_COUNT {
+        let root = verify_merkle_path(
+            CANONICAL_LEAVES[leaf_index],
+            leaf_index,
+            &CANONICAL_PROOFS[leaf_index],
+        );
+        if root != CANONICAL_ROOT {
+            // A failed canonical proof must never be reported as a valid timing.
+            return i64::MIN;
+        }
+        root
+    } else {
+        let synthetic_leaf = [0x42u8; 32];
+        verify_merkle_path(synthetic_leaf, leaf_index, &GENERIC_SIBLINGS[..d])
+    };
+
     let mut out = [0u8; 8];
     out.copy_from_slice(&current[..8]);
     i64::from_le_bytes(out)
 }
 
+#[inline(always)]
+fn quantize_i64(acc: i64, shift: u32) -> i32 {
+    let shifted = acc >> shift;
+    if shifted > 32767 {
+        32767
+    } else if shifted < -32768 {
+        -32768
+    } else {
+        shifted as i32
+    }
+}
+
 #[inline(never)]
-fn conv_work(out_elements: usize, macs_per_output: usize, seed: usize) -> i64 {
-    let mut checksum = 0i64;
-    for out in 0..out_elements {
-        let mut acc = 0i64;
-        for m in 0..macs_per_output {
-            let idx = seed.wrapping_add(out.wrapping_mul(macs_per_output)).wrapping_add(m);
-            acc = acc.wrapping_add(value_a(idx).wrapping_mul(value_b(idx + 19)));
+fn qconv2d(
+    input: &[i32],
+    cin: usize,
+    h: usize,
+    w: usize,
+    cout: usize,
+    kernel: usize,
+    weights: &[i8],
+    bias: &[i32],
+    shift: u32,
+    output: &mut [i32],
+) -> usize {
+    let oh = h - kernel + 1;
+    let ow = w - kernel + 1;
+    let out_len = cout * oh * ow;
+    if input.len() != cin * h * w
+        || weights.len() != cout * cin * kernel * kernel
+        || bias.len() != cout
+        || output.len() < out_len
+    {
+        return 0;
+    }
+
+    for oc in 0..cout {
+        for y in 0..oh {
+            for x in 0..ow {
+                let mut acc = bias[oc] as i64;
+                for ic in 0..cin {
+                    for ky in 0..kernel {
+                        for kx in 0..kernel {
+                            let src = ic * h * w + (y + ky) * w + (x + kx);
+                            let wi = (((oc * cin + ic) * kernel + ky) * kernel + kx);
+                            acc += (input[src] as i64) * (weights[wi] as i64);
+                        }
+                    }
+                }
+                output[oc * oh * ow + y * ow + x] = quantize_i64(acc, shift);
+            }
         }
-        checksum = checksum.wrapping_add(acc.wrapping_mul(((out + seed) % 31 + 1) as i64));
     }
-    checksum
+    out_len
 }
 
 #[inline(never)]
-fn pool2x2_work(out_elements: usize, seed: usize) -> i64 {
-    let mut checksum = 0i64;
-    for out in 0..out_elements {
-        let base = seed + out * 4;
-        let mut m = value_a(base);
-        let b = value_a(base + 1);
-        let c = value_a(base + 2);
-        let d = value_a(base + 3);
-        if b > m { m = b; }
-        if c > m { m = c; }
-        if d > m { m = d; }
-        checksum = checksum.wrapping_add(m.wrapping_mul((out + 1) as i64));
+fn qrelu(input: &[i32], output: &mut [i32]) -> usize {
+    if output.len() < input.len() {
+        return 0;
     }
-    checksum
+    for (dst, src) in output[..input.len()].iter_mut().zip(input.iter()) {
+        *dst = if *src > 0 { *src } else { 0 };
+    }
+    input.len()
 }
 
 #[inline(never)]
-fn flatten_work(n: usize, seed: usize) -> i64 {
-    let mut checksum = 0i64;
-    for i in 0..n {
-        checksum = checksum.wrapping_add(value_a(seed + i).wrapping_mul((i + 1) as i64));
+fn qmaxpool2x2(
+    input: &[i32],
+    channels: usize,
+    h: usize,
+    w: usize,
+    output: &mut [i32],
+) -> usize {
+    if input.len() != channels * h * w || h % 2 != 0 || w % 2 != 0 {
+        return 0;
     }
-    checksum
+    let oh = h / 2;
+    let ow = w / 2;
+    let out_len = channels * oh * ow;
+    if output.len() < out_len {
+        return 0;
+    }
+
+    let mut out_index = 0usize;
+    for c in 0..channels {
+        let base = c * h * w;
+        for y in 0..oh {
+            for x in 0..ow {
+                let i0 = base + (2 * y) * w + 2 * x;
+                let mut m = input[i0];
+                let v1 = input[i0 + 1];
+                let v2 = input[i0 + w];
+                let v3 = input[i0 + w + 1];
+                if v1 > m { m = v1; }
+                if v2 > m { m = v2; }
+                if v3 > m { m = v3; }
+                output[out_index] = m;
+                out_index += 1;
+            }
+        }
+    }
+    out_len
 }
 
 #[inline(never)]
-fn fc_work(inputs: usize, outputs: usize, seed: usize) -> i64 {
-    let mut checksum = 0i64;
+fn qcopy(input: &[i32], output: &mut [i32]) -> usize {
+    if output.len() < input.len() {
+        return 0;
+    }
+    output[..input.len()].copy_from_slice(input);
+    input.len()
+}
+
+#[inline(never)]
+fn qfc(
+    input: &[i32],
+    outputs: usize,
+    weights: &[i8],
+    bias: &[i32],
+    shift: u32,
+    output: &mut [i32],
+) -> usize {
+    let inputs = input.len();
+    if weights.len() != outputs * inputs || bias.len() != outputs || output.len() < outputs {
+        return 0;
+    }
     for o in 0..outputs {
-        let mut acc = value_b(seed + o);
+        let mut acc = bias[o] as i64;
+        let base = o * inputs;
         for i in 0..inputs {
-            let idx = seed + o * inputs + i;
-            acc = acc.wrapping_add(value_a(idx).wrapping_mul(value_b(idx + 23)));
+            acc += (input[i] as i64) * (weights[base + i] as i64);
         }
-        checksum = checksum.wrapping_add(acc.wrapping_mul((o + 1) as i64));
+        output[o] = quantize_i64(acc, shift);
     }
-    checksum
+    outputs
 }
 
 #[inline(never)]
-fn bench_lenet_op(op: usize) -> i64 {
-    // Canonical LeNet-5 arithmetic dimensions (input padded to 32x32):
-    // Conv1: 6*28*28 outputs, 1*5*5 MACs/output.
-    // Conv2: 16*10*10 outputs, 6*5*5 MACs/output.
+fn apply_lenet_op(op: usize, input: &[i32], output: &mut [i32]) -> usize {
     match op {
-        1 => conv_work(6 * 28 * 28, 25, 101),
-        2 => bench_relu(6 * 28 * 28),
-        3 => pool2x2_work(6 * 14 * 14, 301),
-        4 => conv_work(16 * 10 * 10, 6 * 25, 401),
-        5 => bench_relu(16 * 10 * 10),
-        6 => pool2x2_work(16 * 5 * 5, 601),
-        7 => flatten_work(16 * 5 * 5, 701),
-        8 => fc_work(400, 120, 801),
-        9 => bench_relu(120),
-        10 => fc_work(120, 84, 1001),
-        11 => bench_relu(84),
-        12 => fc_work(84, 10, 1201),
+        1 => qconv2d(input, 1, 32, 32, 6, 5, &CONV1_W, &CONV1_B, 2, output),
+        2 => qrelu(input, output),
+        3 => qmaxpool2x2(input, 6, 28, 28, output),
+        4 => qconv2d(input, 6, 14, 14, 16, 5, &CONV2_W, &CONV2_B, 4, output),
+        5 => qrelu(input, output),
+        6 => qmaxpool2x2(input, 16, 10, 10, output),
+        7 => qcopy(input, output),
+        8 => qfc(input, 120, &FC1_W, &FC1_B, 7, output),
+        9 => qrelu(input, output),
+        10 => qfc(input, 84, &FC2_W, &FC2_B, 6, output),
+        11 => qrelu(input, output),
+        12 => qfc(input, 10, &FC3_W, &FC3_B, 5, output),
         _ => 0,
     }
 }
 
 #[inline(never)]
-fn bench_lenet_block(start: usize, end: usize) -> i64 {
-    // start/end are 0-based transition indices with end exclusive.
-    if start >= end || end > 12 {
-        return 0;
-    }
+fn checksum_state(data: &[i32]) -> i64 {
     let mut checksum = 0i64;
-    let mut t = start;
-    while t < end {
-        checksum = checksum.wrapping_add(bench_lenet_op(t + 1).rotate_left((t % 31) as u32));
-        t += 1;
+    for (index, value) in data.iter().enumerate() {
+        checksum = checksum.wrapping_add(
+            (*value as i64).wrapping_mul(((index % 97) + 1) as i64),
+        );
     }
     checksum
+}
+
+#[inline(never)]
+fn bench_lenet_block(start: usize, end: usize) -> i64 {
+    // A genuine state-chained interval verifier.  It loads the exact committed
+    // checkpoint S_start generated by generate_lenet_vectors.py, re-executes
+    // f_{start+1}..f_end using deterministic quantized LeNet-5 dimensions, and
+    // accepts the benchmark only when the result exactly equals S_end.
+    //
+    // This benchmark includes checkpoint memory copy, arithmetic, and final
+    // state comparison.  It still excludes transaction/witness syscalls and
+    // Merkle authentication, which are measured separately.
+    if start >= end || end > 12 {
+        return i64::MIN;
+    }
+
+    let mut a = [0i32; LENET_MAX_STATE];
+    let mut b = [0i32; LENET_MAX_STATE];
+    let mut len = load_checkpoint(start, &mut a);
+    if len != LENET_STATE_LENS[start] {
+        return i64::MIN;
+    }
+
+    let mut current_in_a = true;
+    let mut op = start + 1;
+    while op <= end {
+        let next_len = if current_in_a {
+            apply_lenet_op(op, &a[..len], &mut b)
+        } else {
+            apply_lenet_op(op, &b[..len], &mut a)
+        };
+        if next_len == 0 || next_len != LENET_STATE_LENS[op] {
+            return i64::MIN;
+        }
+        len = next_len;
+        current_in_a = !current_in_a;
+        op += 1;
+    }
+
+    let final_state = if current_in_a { &a[..len] } else { &b[..len] };
+    if !checkpoint_matches(end, final_state, len) {
+        return i64::MIN;
+    }
+    checksum_state(final_state)
 }
 
 fn program_entry() -> i8 {
@@ -211,13 +415,15 @@ fn program_entry() -> i8 {
     let size = parse_usize(option_env!("BENCH_SIZE").unwrap_or("64"), 64);
     let start = parse_usize(option_env!("BENCH_START").unwrap_or("0"), 0);
     let end = parse_usize(option_env!("BENCH_END").unwrap_or("1"), 1);
+    let leaf_index = parse_usize(option_env!("BENCH_LEAF_INDEX").unwrap_or("6"), 6);
 
     let checksum = match kind {
         "relu" => bench_relu(size),
         "dot" => bench_dot(size),
         "gemm" => bench_gemm(size),
         "conv" => bench_conv(size),
-        "merkle" => bench_merkle(size),
+        "merkle" => bench_merkle(size, leaf_index),
+        "merkle_access" => bench_merkle_access(size, leaf_index),
         "lenet" => bench_lenet_block(start, end),
         _ => return 2,
     };

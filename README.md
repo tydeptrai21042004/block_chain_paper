@@ -1,36 +1,79 @@
-# CellVG / HNDT experiment code
+# CellVG / HNDT artifact
 
-This folder contains only implementation, tests, CKB-VM benchmarks, templates, and generated experiment outputs.
+This repository contains the HNDT optimizer, exact constrained extension,
+state-chained CKB-VM verification benchmark, paper-grounded comparison-policy
+adapters, tests, experiment pipeline, and a manuscript snapshot.
+
+## Start here
+
+- [Experiment guide](EXPERIMENT_GUIDE.md)
+- [Paper-grounded comparisons](BASELINES.md)
+- [CKB benchmark semantics](ckb_bench/README.md)
+- [Corrections and changes](CORRECTIONS.md)
+- [Test report](TEST_REPORT.md)
+- [Bundled manuscript](paper/README.md)
 
 ## Quick validation
 
 ```bash
-./run_tests.sh
+bash run_tests.sh
 ```
 
-The test suite checks the Bellman solver, baselines, policy traversal, input/CSV validation, CKB parsers, backend completeness, and heterogeneity ablation.
+The current suite validates:
+
+- exact unconstrained HNDT;
+- exact round-budgeted HNDT;
+- mechanism-isolation ablations;
+- literature-adapter provenance/fidelity guards;
+- corrected 13-state Merkle proofs;
+- generated **state-chained** LeNet checkpoints and all 42 span-1..4 intervals;
+- parsers, CSV/model validation, backend completeness, and local documentation
+  links;
+- a synthetic end-to-end experiment.
 
 ## Demo sanity run
 
 ```bash
 python -m pip install -r experiments/requirements.txt
-./run_small_experiment.sh demo
+bash run_small_experiment.sh demo
 ```
 
-Demo values are synthetic and must not be copied into the manuscript.
+Demo data are synthetic and must never be copied into the manuscript.
 
 ## Real measurement workflow
 
 ```bash
 cd ckb_bench
-./run_benchmarks.sh
-./run_lenet_intervals.sh
+bash run_benchmarks.sh
+bash run_lenet_intervals.sh
 cd ..
+
 python experiments/fill_query_template_from_ckb.py
 python experiments/fill_interval_template_from_ckb.py
-./run_small_experiment.sh real
+bash run_small_experiment.sh real
 ```
 
-See `EXPERIMENT_GUIDE.md` for the full protocol.
+The main run reports:
 
-Generated plots remain inside this code folder. After reviewing the real logs/CSVs, copy only the final verified figure(s) and numerical values into `../latex/`.
+- **HNDT**;
+- one deduplicated **prior-work midpoint/pinpoint family** representing the
+  comparable Arbitrum/opML-Phase-1/Agatha-chain policies;
+- adaptive-split-only and adaptive-stop-only mechanism ablations;
+- oracle best fixed-`g` plus requested fixed-`g` ablations;
+- optional reproduced ZK and direct-full-native strategies when the required
+  measurements exist.
+
+Additional outputs include an exact round-budget frontier and an HNDT policy
+audit with the cost margin to the best alternative action.
+
+## Scope statement
+
+The neural interval benchmark is now genuinely state chained: each measured
+interval starts from a generated checkpoint `S_i`, executes the real ordered
+operator sequence, and must exactly reproduce `S_j`. The weights are fixed
+synthetic integers, not a trained model, because the research outcome is
+verification/dispute cost rather than predictive accuracy.
+
+The benchmark still does not claim complete transaction cost: witness syscalls,
+Cell serialization, and production model/economic plumbing must be measured
+separately.

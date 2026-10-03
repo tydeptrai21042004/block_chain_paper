@@ -4,6 +4,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
 python3 -m compileall -q experiments ckb_bench
+python3 ckb_bench/generate_merkle_vectors.py --check
+python3 ckb_bench/generate_lenet_vectors.py --check
 python3 -m unittest discover -s experiments/tests -v
 
 TMP_OUT="${TMPDIR:-/tmp}/cellvg_hndt_demo_smoke_$$"

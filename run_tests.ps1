@@ -3,6 +3,8 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 
 python -m compileall -q experiments ckb_bench
+python ckb_bench/generate_merkle_vectors.py --check
+python ckb_bench/generate_lenet_vectors.py --check
 python -m unittest discover -s experiments/tests -v
 
 $TmpOut = Join-Path $env:TEMP ("cellvg_hndt_demo_smoke_" + [guid]::NewGuid().ToString("N"))

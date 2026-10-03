@@ -15,6 +15,8 @@ if ! command -v ckb-debugger >/dev/null 2>&1; then
   exit 1
 fi
 
+python3 "$ROOT/generate_lenet_vectors.py" --check
+
 export RUSTFLAGS="${RUSTFLAGS:-} -C passes=lower-atomic"
 TARGET="riscv64imac-unknown-none-elf"
 
@@ -29,8 +31,8 @@ run_interval() {
   ckb-debugger --bin "$bin" 2>&1 | tee "$LOG_DIR/$tag.log"
 }
 
-# Small but fair cost set for the manuscript: every consecutive interval of
-# spans 1--4. This ensures fixed g=2 and g=4 baselines can settle every
+# State-chained publication cost set: every consecutive interval of
+# spans 1--4. Each binary starts from the exact generated S_i and verifies S_j. This ensures fixed g=2 and g=4 baselines can settle every
 # interval at or below their advertised terminal granularity.
 for span in 1 2 3 4; do
   for ((i=0; i+span<=12; i++)); do
