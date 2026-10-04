@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import inf, isfinite, isnan
 from statistics import median
-from typing import Dict, List, Mapping, Tuple
+from typing import Dict, List, Mapping, Sequence, Tuple
 
 from .core import Action, CostModel, policy_reachable_intervals
 
@@ -95,18 +95,47 @@ def evaluate_policy(
     return [simulate_fault(model, policy, t) for t in range(model.n)]
 
 
+def _normalized_weights(length: int, weights: Sequence[float] | None) -> tuple[float, ...]:
+    if weights is None:
+        return tuple(1.0 / length for _ in range(length))
+    if len(weights) != length:
+        raise ValueError(f"fault weights must have length {length}, got {len(weights)}")
+    values = [float(x) for x in weights]
+    if any(isnan(x) or not isfinite(x) or x < 0 for x in values):
+        raise ValueError("fault weights must be finite and non-negative")
+    total = sum(values)
+    if total <= 0:
+        raise ValueError("at least one fault weight must be positive")
+    return tuple(x / total for x in values)
+
+
+def weighted_mean_cost(paths: List[PathResult], fault_weights: Sequence[float] | None = None) -> float:
+    if not paths:
+        raise ValueError("paths must be non-empty")
+    ordered = sorted(paths, key=lambda p: p.fault_index)
+    expected = list(range(len(ordered)))
+    observed = [p.fault_index for p in ordered]
+    if observed != expected:
+        raise ValueError(f"paths must contain exactly one result per fault index; got {observed}")
+    weights = _normalized_weights(len(ordered), fault_weights)
+    return sum(w * p.total_cost for w, p in zip(weights, ordered))
+
+
 def summarize(
     name: str,
     paths: List[PathResult],
     optimum: float | None = None,
+    fault_weights: Sequence[float] | None = None,
 ) -> dict:
     if not paths:
         raise ValueError("paths must be non-empty")
     worst = max(p.total_cost for p in paths)
     best = min(p.total_cost for p in paths)
-    mean = sum(p.total_cost for p in paths) / len(paths)
+    weights = _normalized_weights(len(paths), fault_weights)
+    ordered = sorted(paths, key=lambda p: p.fault_index)
+    mean = sum(w * p.total_cost for w, p in zip(weights, ordered))
     worst_rounds = max(p.rounds for p in paths)
-    mean_rounds = sum(p.rounds for p in paths) / len(paths)
+    mean_rounds = sum(w * p.rounds for w, p in zip(weights, ordered))
 
     unique_leaves = {(p.terminal_i, p.terminal_j, p.backend) for p in paths}
     leaf_sizes = [j - i for i, j, _ in unique_leaves]

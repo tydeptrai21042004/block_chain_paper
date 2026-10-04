@@ -1,0 +1,1913 @@
+# Unified diff: uploaded (1)(3) -> V5 patch
+--- /dev/null
++++ b/experiments/config/campaign_demo.json
+@@ -0,0 +1,29 @@
++{
++  "notes": "Synthetic multi-trace software campaign. NOT FOR MANUSCRIPT.",
++  "runs": [
++    {
++      "name": "lenet",
++      "trace": "data/traces/lenet_trace.csv",
++      "interval_costs": "data/demo/interval_costs_lenet_demo.csv",
++      "query_costs": "data/demo/query_costs_demo.csv",
++      "config": "config/demo.json",
++      "synthetic": true
++    },
++    {
++      "name": "conv_heavy",
++      "trace": "data/traces/conv_heavy_trace.csv",
++      "interval_costs": "data/demo/interval_costs_conv_heavy_demo.csv",
++      "query_costs": "data/demo/query_costs_demo.csv",
++      "config": "config/demo.json",
++      "synthetic": true
++    },
++    {
++      "name": "gemm_heavy",
++      "trace": "data/traces/gemm_heavy_trace.csv",
++      "interval_costs": "data/demo/interval_costs_gemm_heavy_demo.csv",
++      "query_costs": "data/demo/query_costs_demo.csv",
++      "config": "config/demo.json",
++      "synthetic": true
++    }
++  ]
++}
+--- /dev/null
++++ b/experiments/config/campaign_real.example.json
+@@ -0,0 +1,29 @@
++{
++  "notes": "Populate the three measurement CSVs by running ckb_bench/run_trace_intervals.sh for each trace. No synthetic costs are substituted.",
++  "runs": [
++    {
++      "name": "lenet",
++      "trace": "data/traces/lenet_trace.csv",
++      "interval_costs": "../ckb_bench/lenet_interval_measurements.csv",
++      "query_costs": "data/templates/query_costs_template.csv",
++      "config": "config/experiment.json",
++      "synthetic": false
++    },
++    {
++      "name": "conv_heavy",
++      "trace": "data/traces/conv_heavy_trace.csv",
++      "interval_costs": "../ckb_bench/conv_heavy_interval_measurements.csv",
++      "query_costs": "data/templates/query_costs_template.csv",
++      "config": "config/experiment.json",
++      "synthetic": false
++    },
++    {
++      "name": "gemm_heavy",
++      "trace": "data/traces/gemm_heavy_trace.csv",
++      "interval_costs": "../ckb_bench/gemm_heavy_interval_measurements.csv",
++      "query_costs": "data/templates/query_costs_template.csv",
++      "config": "config/experiment.json",
++      "synthetic": false
++    }
++  ]
++}
+--- /dev/null
++++ b/experiments/data/demo/interval_costs_conv_heavy_demo.csv
+@@ -0,0 +1,79 @@
++i,j,span,native_cycles,zk_cycles,source,notes
++0,1,1,102.0,,synthetic-demo,NOT FOR MANUSCRIPT
++1,2,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++2,3,1,102.0,,synthetic-demo,NOT FOR MANUSCRIPT
++3,4,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++4,5,1,30.0,,synthetic-demo,NOT FOR MANUSCRIPT
++5,6,1,102.0,,synthetic-demo,NOT FOR MANUSCRIPT
++6,7,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++7,8,1,30.0,,synthetic-demo,NOT FOR MANUSCRIPT
++8,9,1,15.0,,synthetic-demo,NOT FOR MANUSCRIPT
++9,10,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++10,11,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++11,12,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++0,2,2,110.0,,synthetic-demo,NOT FOR MANUSCRIPT
++1,3,2,110.0,,synthetic-demo,NOT FOR MANUSCRIPT
++2,4,2,110.0,,synthetic-demo,NOT FOR MANUSCRIPT
++3,5,2,38.0,,synthetic-demo,NOT FOR MANUSCRIPT
++4,6,2,120.0,,synthetic-demo,NOT FOR MANUSCRIPT
++5,7,2,110.0,,synthetic-demo,NOT FOR MANUSCRIPT
++6,8,2,38.0,,synthetic-demo,NOT FOR MANUSCRIPT
++7,9,2,33.0,,synthetic-demo,NOT FOR MANUSCRIPT
++8,10,2,70.0,,synthetic-demo,NOT FOR MANUSCRIPT
++9,11,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++10,12,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++0,3,3,200.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,4,3,118.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,5,3,128.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,6,3,128.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,7,3,128.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,8,3,128.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,9,3,41.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++7,10,3,88.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++8,11,3,78.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++9,12,3,130.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,4,4,208.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,5,4,136.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,6,4,218.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,7,4,136.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,8,4,146.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,9,4,131.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,10,4,96.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++7,11,4,96.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++8,12,4,133.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,5,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,6,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,7,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,8,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,9,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,10,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,11,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++7,12,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,6,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,7,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,8,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,9,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,10,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,11,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,12,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,7,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,8,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,9,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,10,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,11,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,12,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,8,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,9,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,10,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,11,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,12,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,9,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,10,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,11,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,12,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,10,10,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,11,10,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,12,10,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,11,11,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,12,11,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,12,12,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
+--- /dev/null
++++ b/experiments/data/demo/interval_costs_gemm_heavy_demo.csv
+@@ -0,0 +1,79 @@
++i,j,span,native_cycles,zk_cycles,source,notes
++0,1,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++1,2,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++2,3,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++3,4,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++4,5,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++5,6,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++6,7,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++7,8,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++8,9,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++9,10,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++10,11,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++11,12,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++0,2,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++1,3,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++2,4,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++3,5,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++4,6,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++5,7,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++6,8,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++7,9,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++8,10,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++9,11,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++10,12,2,122.0,,synthetic-demo,NOT FOR MANUSCRIPT
++0,3,3,130.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,4,3,83.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,5,3,130.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,6,3,83.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,7,3,130.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,8,3,83.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,9,3,130.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++7,10,3,83.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++8,11,3,130.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++9,12,3,130.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,4,4,138.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,5,4,138.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,6,4,138.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,7,4,138.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,8,4,138.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,9,4,138.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,10,4,138.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++7,11,4,138.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++8,12,4,185.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,5,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,6,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,7,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,8,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,9,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,10,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,11,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++7,12,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,6,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,7,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,8,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,9,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,10,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,11,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,12,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,7,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,8,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,9,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,10,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,11,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,12,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,8,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,9,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,10,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,11,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,12,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,9,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,10,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,11,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,12,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,10,10,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,11,10,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,12,10,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,11,11,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,12,11,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,12,12,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
+--- /dev/null
++++ b/experiments/data/demo/interval_costs_lenet_demo.csv
+@@ -0,0 +1,79 @@
++i,j,span,native_cycles,zk_cycles,source,notes
++0,1,1,102.0,,synthetic-demo,NOT FOR MANUSCRIPT
++1,2,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++2,3,1,30.0,,synthetic-demo,NOT FOR MANUSCRIPT
++3,4,1,102.0,,synthetic-demo,NOT FOR MANUSCRIPT
++4,5,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++5,6,1,30.0,,synthetic-demo,NOT FOR MANUSCRIPT
++6,7,1,15.0,,synthetic-demo,NOT FOR MANUSCRIPT
++7,8,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++8,9,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++9,10,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++10,11,1,20.0,,synthetic-demo,NOT FOR MANUSCRIPT
++11,12,1,67.0,,synthetic-demo,NOT FOR MANUSCRIPT
++0,2,2,110.0,,synthetic-demo,NOT FOR MANUSCRIPT
++1,3,2,38.0,,synthetic-demo,NOT FOR MANUSCRIPT
++2,4,2,120.0,,synthetic-demo,NOT FOR MANUSCRIPT
++3,5,2,110.0,,synthetic-demo,NOT FOR MANUSCRIPT
++4,6,2,38.0,,synthetic-demo,NOT FOR MANUSCRIPT
++5,7,2,33.0,,synthetic-demo,NOT FOR MANUSCRIPT
++6,8,2,70.0,,synthetic-demo,NOT FOR MANUSCRIPT
++7,9,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++8,10,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++9,11,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++10,12,2,75.0,,synthetic-demo,NOT FOR MANUSCRIPT
++0,3,3,128.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,4,3,128.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,5,3,128.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,6,3,128.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,7,3,41.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,8,3,88.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,9,3,78.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++7,10,3,130.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++8,11,3,83.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++9,12,3,130.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,4,4,218.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,5,4,136.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,6,4,146.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,7,4,131.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,8,4,96.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,9,4,96.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,10,4,133.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++7,11,4,138.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++8,12,4,138.0,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,5,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,6,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,7,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,8,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,9,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,10,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,11,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++7,12,5,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,6,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,7,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,8,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,9,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,10,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,11,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++6,12,6,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,7,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,8,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,9,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,10,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,11,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++5,12,7,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,8,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,9,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,10,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,11,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++4,12,8,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,9,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,10,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,11,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++3,12,9,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,10,10,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,11,10,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++2,12,10,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,11,11,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++1,12,11,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
++0,12,12,,190.0,synthetic-demo,NOT FOR MANUSCRIPT
+--- /dev/null
++++ b/experiments/data/traces/gemm_heavy_trace.csv
+@@ -0,0 +1,13 @@
++index,name,kind,input_shape,output_shape,notes
++0,fc1,GEMM,192,160,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++1,relu1,ReLU,160,160,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++2,fc2,GEMM,160,128,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++3,relu2,ReLU,128,128,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++4,fc3,GEMM,128,96,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++5,relu3,ReLU,96,96,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++6,fc4,GEMM,96,64,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++7,relu4,ReLU,64,64,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++8,fc5,GEMM,64,48,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++9,relu5,ReLU,48,48,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++10,fc6,GEMM,48,32,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
++11,fc7,GEMM,32,10,Deterministic gemm_heavy verification trace; accuracy is not evaluated.
+--- /dev/null
++++ b/experiments/data/traces/lenet_trace.csv
+@@ -0,0 +1,13 @@
++index,name,kind,input_shape,output_shape,notes
++0,conv1,Conv2D,1x32x32,6x28x28,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++1,relu1,ReLU,6x28x28,6x28x28,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++2,pool1,MaxPool2D,6x28x28,6x14x14,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++3,conv2,Conv2D,6x14x14,16x10x10,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++4,relu2,ReLU,16x10x10,16x10x10,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++5,pool2,MaxPool2D,16x10x10,16x5x5,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++6,flatten,Flatten,16x5x5,400,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++7,fc1,GEMM,400,120,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++8,relu3,ReLU,120,120,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++9,fc2,GEMM,120,84,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++10,relu4,ReLU,84,84,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
++11,fc3,GEMM,84,10,Canonical deterministic LeNet-5 dispute trace; accuracy is not evaluated.
+--- /dev/null
++++ b/experiments/data/traces/conv_heavy_trace.csv
+@@ -0,0 +1,13 @@
++index,name,kind,input_shape,output_shape,notes
++0,conv1,Conv2D,1x32x32,4x30x30,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++1,relu1,ReLU,4x30x30,4x30x30,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++2,conv2,Conv2D,4x30x30,4x28x28,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++3,relu2,ReLU,4x28x28,4x28x28,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++4,pool1,MaxPool2D,4x28x28,4x14x14,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++5,conv3,Conv2D,4x14x14,8x12x12,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++6,relu3,ReLU,8x12x12,8x12x12,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++7,pool2,MaxPool2D,8x12x12,8x6x6,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++8,flatten,Flatten,8x6x6,288,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++9,fc1,GEMM,288,64,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++10,relu4,ReLU,64,64,Deterministic conv_heavy verification trace; accuracy is not evaluated.
++11,fc2,GEMM,64,10,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+--- a/experiments/hndt/evaluate.py
++++ b/experiments/hndt/evaluate.py
+@@ -3,7 +3,7 @@
+ from dataclasses import dataclass
+ from math import inf, isfinite, isnan
+ from statistics import median
+-from typing import Dict, List, Mapping, Tuple
++from typing import Dict, List, Mapping, Sequence, Tuple
+ 
+ from .core import Action, CostModel, policy_reachable_intervals
+ 
+@@ -95,18 +95,47 @@
+     return [simulate_fault(model, policy, t) for t in range(model.n)]
+ 
+ 
++def _normalized_weights(length: int, weights: Sequence[float] | None) -> tuple[float, ...]:
++    if weights is None:
++        return tuple(1.0 / length for _ in range(length))
++    if len(weights) != length:
++        raise ValueError(f"fault weights must have length {length}, got {len(weights)}")
++    values = [float(x) for x in weights]
++    if any(isnan(x) or not isfinite(x) or x < 0 for x in values):
++        raise ValueError("fault weights must be finite and non-negative")
++    total = sum(values)
++    if total <= 0:
++        raise ValueError("at least one fault weight must be positive")
++    return tuple(x / total for x in values)
++
++
++def weighted_mean_cost(paths: List[PathResult], fault_weights: Sequence[float] | None = None) -> float:
++    if not paths:
++        raise ValueError("paths must be non-empty")
++    ordered = sorted(paths, key=lambda p: p.fault_index)
++    expected = list(range(len(ordered)))
++    observed = [p.fault_index for p in ordered]
++    if observed != expected:
++        raise ValueError(f"paths must contain exactly one result per fault index; got {observed}")
++    weights = _normalized_weights(len(ordered), fault_weights)
++    return sum(w * p.total_cost for w, p in zip(weights, ordered))
++
++
+ def summarize(
+     name: str,
+     paths: List[PathResult],
+     optimum: float | None = None,
++    fault_weights: Sequence[float] | None = None,
+ ) -> dict:
+     if not paths:
+         raise ValueError("paths must be non-empty")
+     worst = max(p.total_cost for p in paths)
+     best = min(p.total_cost for p in paths)
+-    mean = sum(p.total_cost for p in paths) / len(paths)
++    weights = _normalized_weights(len(paths), fault_weights)
++    ordered = sorted(paths, key=lambda p: p.fault_index)
++    mean = sum(w * p.total_cost for w, p in zip(weights, ordered))
+     worst_rounds = max(p.rounds for p in paths)
+-    mean_rounds = sum(p.rounds for p in paths) / len(paths)
++    mean_rounds = sum(w * p.rounds for w, p in zip(weights, ordered))
+ 
+     unique_leaves = {(p.terminal_i, p.terminal_j, p.backend) for p in paths}
+     leaf_sizes = [j - i for i, j, _ in unique_leaves]
+--- a/experiments/hndt/pareto.py
++++ b/experiments/hndt/pareto.py
+@@ -48,6 +48,27 @@
+     right: Optional["ParetoLabel"] = None
+ 
+ 
++
++
++@dataclass
++class ParetoStats:
++    """Optional solver instrumentation; never participates in policy decisions."""
++
++    intervals: int = 0
++    candidates_generated: int = 0
++    labels_retained: int = 0
++    duplicate_pruned: int = 0
++    dominated_pruned: int = 0
++    peak_frontier_size: int = 0
++    peak_candidates_per_interval: int = 0
++
++    @property
++    def pruning_ratio(self) -> float:
++        if self.candidates_generated == 0:
++            return 0.0
++        return 1.0 - (self.labels_retained / self.candidates_generated)
++
++
+ @dataclass
+ class ParetoHNDTResult:
+     """Exact Pareto-HNDT result for all intervals."""
+@@ -57,6 +78,7 @@
+     frontier: Dict[Interval, Tuple[ParetoLabel, ...]]
+     selected: ParetoLabel
+     policy: Dict[Interval, Action]
++    stats: Optional[ParetoStats] = None
+ 
+     @property
+     def worst_optimum(self) -> float:
+@@ -142,16 +164,11 @@
+     return no_worse and strictly_better
+ 
+ 
+-def prune_nondominated(
++def _prune_nondominated_with_counts(
+     labels: Iterable[ParetoLabel],
+     tie_tolerance: float = 1e-12,
+-) -> Tuple[ParetoLabel, ...]:
+-    """Return a deterministic exact 2-D nondominated frontier.
+-
+-    Equal objective pairs are collapsed using only tertiary policy preferences
+-    (fewer rounds, then deterministic action ordering).  Dominance itself is
+-    based solely on the two scientific objectives.
+-    """
++) -> tuple[Tuple[ParetoLabel, ...], int, int, int]:
++    """Return frontier plus duplicate/dominance counts for diagnostics."""
+ 
+     if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+         raise ValueError("tie_tolerance must be non-negative and not NaN")
+@@ -184,7 +201,27 @@
+         frontier.append(label)
+ 
+     frontier.sort(key=lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x)))
+-    return tuple(frontier)
++    return (
++        tuple(frontier),
++        len(finite) - len(unique),
++        len(unique) - len(frontier),
++        len(finite),
++    )
++
++
++def prune_nondominated(
++    labels: Iterable[ParetoLabel],
++    tie_tolerance: float = 1e-12,
++) -> Tuple[ParetoLabel, ...]:
++    """Return a deterministic exact 2-D nondominated frontier.
++
++    Equal objective pairs are collapsed using only tertiary policy preferences
++    (fewer rounds, then deterministic action ordering).  Dominance itself is
++    based solely on the two scientific objectives.
++    """
++
++    frontier, _, _, _ = _prune_nondominated_with_counts(labels, tie_tolerance)
++    return frontier
+ 
+ 
+ def reconstruct_policy(label: ParetoLabel) -> Dict[Interval, Action]:
+@@ -237,6 +274,7 @@
+     model: CostModel,
+     fault_weights: Optional[Sequence[float]] = None,
+     tie_tolerance: float = 1e-12,
++    collect_stats: bool = False,
+ ) -> ParetoHNDTResult:
+     """Compute the exact Pareto frontier for HNDT's stop-or-split strategy space.
+ 
+@@ -258,6 +296,7 @@
+         return prefix[j] - prefix[i]
+ 
+     frontier: Dict[Interval, Tuple[ParetoLabel, ...]] = {}
++    stats = ParetoStats() if collect_stats else None
+ 
+     for length in range(1, n + 1):
+         for i in range(0, n - length + 1):
+@@ -304,7 +343,19 @@
+                                 )
+                             )
+ 
+-            current = prune_nondominated(candidates, tie_tolerance=tie_tolerance)
++            current, duplicate_pruned, dominated_pruned, finite_candidates = _prune_nondominated_with_counts(
++                candidates, tie_tolerance=tie_tolerance
++            )
++            if stats is not None:
++                stats.intervals += 1
++                stats.candidates_generated += finite_candidates
++                stats.labels_retained += len(current)
++                stats.duplicate_pruned += duplicate_pruned
++                stats.dominated_pruned += dominated_pruned
++                stats.peak_frontier_size = max(stats.peak_frontier_size, len(current))
++                stats.peak_candidates_per_interval = max(
++                    stats.peak_candidates_per_interval, finite_candidates
++                )
+             if not current:
+                 raise ValueError(
+                     f"Interval [{i},{j}] is unsolvable in Pareto-HNDT: no finite "
+@@ -321,6 +372,7 @@
+         frontier=frontier,
+         selected=selected,
+         policy=policy,
++        stats=stats,
+     )
+ 
+ 
+--- a/experiments/hndt/reporting.py
++++ b/experiments/hndt/reporting.py
+@@ -30,8 +30,14 @@
+ def write_fault_paths(
+     path: Path,
+     strategy_to_paths: Mapping[str, Iterable[PathResult]],
++    fault_weights: Sequence[float] | None = None,
+ ) -> None:
+     rows = []
++    normalized = None
++    if fault_weights is not None:
++        values = [float(x) for x in fault_weights]
++        total = sum(values)
++        normalized = [x / total for x in values]
+     for strategy, paths in strategy_to_paths.items():
+         for p in paths:
+             rows.append(
+@@ -39,6 +45,7 @@
+                     "strategy": strategy,
+                     "fault_index": p.fault_index,
+                     "fault_position": p.fault_index + 1,
++                    "fault_weight": "" if normalized is None else normalized[p.fault_index],
+                     "total_cost": p.total_cost,
+                     "rounds": p.rounds,
+                     "terminal_i": p.terminal_i,
+--- /dev/null
++++ b/experiments/hndt/sensitivity.py
+@@ -0,0 +1,97 @@
++from __future__ import annotations
++
++"""Controlled sensitivity helpers that do not modify HNDT/Pareto-HNDT logic."""
++
++import math
++import random
++from typing import Sequence
++
++from .core import CostModel
++
++
++def normalize_weights(values: Sequence[float]) -> tuple[float, ...]:
++    data = [float(x) for x in values]
++    if not data or any(not math.isfinite(x) or x < 0 for x in data):
++        raise ValueError("weights must be a non-empty finite non-negative sequence")
++    total = sum(data)
++    if total <= 0:
++        raise ValueError("at least one weight must be positive")
++    return tuple(x / total for x in data)
++
++
++def fault_weight_profile(model: CostModel, profile: str) -> tuple[float, ...]:
++    """Return a predefined transparent fault-weight sensitivity profile."""
++
++    key = profile.strip().lower().replace("-", "_")
++    n = model.n
++    if key == "uniform":
++        return tuple(1.0 / n for _ in range(n))
++    if key in {"front", "front_skewed"}:
++        return normalize_weights([n - i for i in range(n)])
++    if key in {"back", "back_skewed"}:
++        return normalize_weights([i + 1 for i in range(n)])
++    if key in {"cost", "cost_proportional"}:
++        atomic = []
++        for i in range(n):
++            value, backend = model.best_terminal(i, i + 1)
++            if backend is None or not math.isfinite(value):
++                raise ValueError("cost-proportional weights require complete finite atomic costs")
++            atomic.append(value)
++        return normalize_weights(atomic)
++    raise ValueError("fault-weight profile must be one of: uniform, front, back, cost")
++
++
++def scale_query_costs(model: CostModel, scale: float) -> CostModel:
++    factor = float(scale)
++    if not math.isfinite(factor) or factor < 0:
++        raise ValueError("query scale must be finite and non-negative")
++
++    def q(i: int, j: int, k: int) -> float:
++        return factor * model.checked_query_cost(i, j, k)
++
++    return CostModel(model.n, model.terminal_costs, q)
++
++
++def perturb_cost_model(
++    model: CostModel,
++    *,
++    relative_noise: float,
++    seed: int,
++    perturb_queries: bool = True,
++) -> CostModel:
++    """Apply deterministic bounded multiplicative noise for stability analysis.
++
++    Each finite terminal cost is multiplied by ``1 + u`` for
++    ``u ~ Uniform[-relative_noise, relative_noise]``. Query costs can be
++    perturbed independently with the same bounded distribution.  This is a
++    sensitivity experiment only; it is never used to choose the reference
++    policy or alter measured CSVs.
++    """
++
++    eps = float(relative_noise)
++    if not math.isfinite(eps) or eps < 0 or eps >= 1:
++        raise ValueError("relative_noise must satisfy 0 <= noise < 1")
++    rng = random.Random(int(seed))
++    terminal = {}
++    for interval in sorted(model.terminal_costs):
++        backend_map = {}
++        for backend in sorted(model.terminal_costs[interval]):
++            raw = float(model.terminal_costs[interval][backend])
++            if math.isfinite(raw):
++                raw *= 1.0 + rng.uniform(-eps, eps)
++            backend_map[backend] = raw
++        terminal[interval] = backend_map
++
++    query_factors: dict[tuple[int, int, int], float] = {}
++    if perturb_queries:
++        for span in range(2, model.n + 1):
++            for i in range(0, model.n - span + 1):
++                j = i + span
++                for k in range(i + 1, j):
++                    query_factors[(i, j, k)] = 1.0 + rng.uniform(-eps, eps)
++
++    def q(i: int, j: int, k: int) -> float:
++        base = model.checked_query_cost(i, j, k)
++        return base * query_factors.get((i, j, k), 1.0)
++
++    return CostModel(model.n, terminal, q)
+--- a/experiments/make_demo_data.py
++++ b/experiments/make_demo_data.py
+@@ -1,15 +1,19 @@
+ #!/usr/bin/env python3
+ """Create deterministic synthetic data for software tests only.
+ 
+-These numbers are intentionally artificial and MUST NOT be copied into the paper.
++These numbers are artificial and MUST NOT be copied into the manuscript.  The
++multi-trace demo exists to exercise the V5 campaign/sensitivity/scalability code
++before real ckb-debugger measurements are supplied.
+ """
+ from __future__ import annotations
+ 
+ import csv
++import shutil
+ from pathlib import Path
+ 
+ ROOT = Path(__file__).resolve().parent
+ TEMPLATES = ROOT / "data" / "templates"
++TRACES = ROOT / "data" / "traces"
+ DEMO = ROOT / "data" / "demo"
+ DEMO.mkdir(parents=True, exist_ok=True)
+ 
+@@ -21,27 +25,41 @@
+     "GEMM": 55.0,
+ }
+ 
+-with (TEMPLATES / "lenet5_trace.csv").open(newline="", encoding="utf-8") as f:
+-    trace = list(csv.DictReader(f))
+-atomic = [kind_cost[r["kind"]] for r in trace]
+-n = len(atomic)
+-
+-with (DEMO / "interval_costs_demo.csv").open("w", newline="", encoding="utf-8") as f:
+-    w = csv.writer(f)
+-    w.writerow(["i", "j", "span", "native_cycles", "zk_cycles", "source", "notes"])
+-    for span in range(1, n + 1):
+-        for i in range(n - span + 1):
+-            j = i + span
+-            # Synthetic availability: native can settle up to four operators; a fixed
+-            # overhead makes stop/split nontrivial. ZK is available for spans >= 3.
+-            native = 12.0 + sum(atomic[i:j]) if span <= 4 else ""
+-            zk = 190.0 if span >= 3 else ""
+-            w.writerow([i, j, span, native, zk, "synthetic-demo", "NOT FOR MANUSCRIPT"])
++trace_paths = {
++    "lenet": TEMPLATES / "lenet5_trace.csv",
++    "conv_heavy": TRACES / "conv_heavy_trace.csv",
++    "gemm_heavy": TRACES / "gemm_heavy_trace.csv",
++}
++
++
++def write_interval_demo(key: str, trace_path: Path) -> Path:
++    with trace_path.open(newline="", encoding="utf-8") as f:
++        trace = list(csv.DictReader(f))
++    atomic = [kind_cost[row["kind"]] for row in trace]
++    n = len(atomic)
++    out = DEMO / f"interval_costs_{key}_demo.csv"
++    with out.open("w", newline="", encoding="utf-8") as f:
++        writer = csv.writer(f)
++        writer.writerow(["i", "j", "span", "native_cycles", "zk_cycles", "source", "notes"])
++        for span in range(1, n + 1):
++            for i in range(n - span + 1):
++                j = i + span
++                native = 12.0 + sum(atomic[i:j]) if span <= 4 else ""
++                zk = 190.0 if span >= 3 else ""
++                writer.writerow([i, j, span, native, zk, "synthetic-demo", "NOT FOR MANUSCRIPT"])
++    return out
++
++
++for key, trace_path in trace_paths.items():
++    write_interval_demo(key, trace_path)
++
++# Backward-compatible filename used by the original --demo mode.
++shutil.copyfile(DEMO / "interval_costs_lenet_demo.csv", DEMO / "interval_costs_demo.csv")
+ 
+ with (DEMO / "query_costs_demo.csv").open("w", newline="", encoding="utf-8") as f:
+-    w = csv.writer(f)
+-    w.writerow(["depth", "cycles", "witness_bytes", "source", "notes"])
++    writer = csv.writer(f)
++    writer.writerow(["depth", "cycles", "witness_bytes", "source", "notes"])
+     for depth in range(1, 9):
+-        w.writerow([depth, 6.0 + 2.0 * depth, 32 * depth, "synthetic-demo", "NOT FOR MANUSCRIPT"])
++        writer.writerow([depth, 6.0 + 2.0 * depth, 32 * depth, "synthetic-demo", "NOT FOR MANUSCRIPT"])
+ 
+-print(f"Synthetic demo data written under {DEMO}")
++print(f"Synthetic multi-trace demo data written under {DEMO}")
+--- a/experiments/results/README.md
++++ b/experiments/results/README.md
+@@ -1,26 +1,22 @@
+ # Results directory
+ 
+-- `demo/` — synthetic pipeline sanity data; never manuscript evidence.
+-- `current/` — real/user-supplied measurement run.
++The repository separates **real measurement evidence** from synthetic software
++and scalability checks.
+ 
+-A completed run may contain:
++- `current/` — one real/user-supplied measurement run, when available;
++- `v5_demo_campaign/` — synthetic three-trace campaign; **NOT FOR MANUSCRIPT**;
++- `v5_demo_sensitivity/` — synthetic fixed-grid sensitivity; **NOT FOR MANUSCRIPT**;
++- `v5_demo_robustness/` — synthetic bounded-noise stability checks; **NOT FOR MANUSCRIPT**;
++- `v5_demo_scalability/` — synthetic solver-scaling results; not CKB cost evidence.
+ 
+-- `summary.csv` — deduplicated main comparison;
+-- `fault_costs.csv` — all strategy/fault-position paths;
+-- `literature_baselines.csv` — provenance, fidelity, exclusions, run status;
+-- `literature_individual_summary.csv` — individual paper-adaptation rows;
+-- `literature_policy_groups.csv` — identical-policy grouping;
+-- `proposal_ablation.csv` — split/stop/secondary-objective mechanism isolation;
+-- `mechanism_ablation.csv` — backward-compatible copy of the proposal ablation;
+-- `round_budget_frontier.csv` — exact cost/interaction frontier;
+-- `pareto_frontier.csv` — exact worst/mean nondominated root frontier;
+-- `proposal_gain.csv` — Pareto-HNDT versus scalar-HNDT non-regression/gain;
+-- `hndt_scalar_policy_audit.csv` — scalar-HNDT action alternatives and margins;
+-- `optional_policy_status.csv` — explicitly skipped unavailable strategies;
+-- `policies/*.json`;
+-- `heterogeneity_ablation.csv`;
+-- `run_metadata.json`.
++A real V5 campaign should be written to a separate directory such as
++`v5_real_campaign/` or `v5_real_suite/` after the raw CKB measurements have been
++collected.
+ 
+-The repository intentionally ships without real numerical results.
++Per-run files include `summary.csv`, `fault_costs.csv`, `pareto_frontier.csv`,
++`proposal_gain.csv`, `proposal_ablation.csv`, `round_budget_frontier.csv`,
++`heterogeneity_ablation.csv`, `hndt_scalar_policy_audit.csv`,
++`pareto_policy_audit.csv`, literature provenance tables, policy JSON files, and
++`run_metadata.json`.
+ 
+ See [the experiment guide](../../EXPERIMENT_GUIDE.md).
+--- /dev/null
++++ b/experiments/run_campaign.py
+@@ -0,0 +1,126 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++"""Run the same Pareto-HNDT experiment over multiple ordered traces.
++
++The campaign runner never invents missing real measurements.  A campaign entry
++must point to explicit trace/interval/query/config files.  Synthetic campaign
++files must set ``synthetic: true`` and are marked NOT FOR MANUSCRIPT by
++``run_experiment.py``.
++"""
++
++import argparse
++import csv
++import json
++import subprocess
++import sys
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent
++
++
++def _resolve(path: str) -> Path:
++    p = Path(path)
++    return p if p.is_absolute() else ROOT / p
++
++
++def _read_csv(path: Path) -> list[dict]:
++    with path.open(newline="", encoding="utf-8") as f:
++        return list(csv.DictReader(f))
++
++
++def _write_csv(path: Path, rows: list[dict]) -> None:
++    path.parent.mkdir(parents=True, exist_ok=True)
++    if not rows:
++        path.write_text("", encoding="utf-8")
++        return
++    fields = []
++    for row in rows:
++        for key in row:
++            if key not in fields:
++                fields.append(key)
++    with path.open("w", newline="", encoding="utf-8") as f:
++        writer = csv.DictWriter(f, fieldnames=fields)
++        writer.writeheader()
++        writer.writerows(rows)
++
++
++def main() -> None:
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--campaign", default=str(ROOT / "config" / "campaign_demo.json"))
++    ap.add_argument("--out", default=str(ROOT / "results" / "campaign_current"))
++    ap.add_argument("--fault-weights", choices=["uniform", "front", "back", "cost"], default="uniform")
++    ap.add_argument("--query-scale", type=float, default=1.0)
++    args = ap.parse_args()
++
++    campaign_path = Path(args.campaign)
++    config = json.loads(campaign_path.read_text(encoding="utf-8"))
++    runs = config.get("runs", [])
++    if not runs:
++        raise ValueError("campaign must define a non-empty runs array")
++
++    out = Path(args.out)
++    out.mkdir(parents=True, exist_ok=True)
++    combined_summary: list[dict] = []
++    combined_gain: list[dict] = []
++    metadata_rows: list[dict] = []
++
++    for entry in runs:
++        name = str(entry["name"])
++        run_out = out / "per_trace" / name
++        cmd = [
++            sys.executable,
++            str(ROOT / "run_experiment.py"),
++            "--trace", str(_resolve(entry["trace"])),
++            "--interval-costs", str(_resolve(entry["interval_costs"])),
++            "--query-costs", str(_resolve(entry["query_costs"])),
++            "--config", str(_resolve(entry["config"])),
++            "--out", str(run_out),
++            "--fault-weights", args.fault_weights,
++            "--query-scale", str(args.query_scale),
++            "--collect-pareto-stats",
++        ]
++        if bool(entry.get("synthetic", False)):
++            cmd.append("--synthetic-data")
++        subprocess.run(cmd, check=True, cwd=ROOT.parent)
++
++        for row in _read_csv(run_out / "summary.csv"):
++            combined_summary.append({"trace": name, **row})
++        for row in _read_csv(run_out / "proposal_gain.csv"):
++            combined_gain.append({"trace": name, **row})
++        meta = json.loads((run_out / "run_metadata.json").read_text(encoding="utf-8"))
++        metadata_rows.append(
++            {
++                "trace": name,
++                "data_status": meta["data_status"],
++                "n": meta["n"],
++                "pareto_worst": meta["pareto_hndt_worst_optimum"],
++                "pareto_mean": meta["pareto_hndt_mean_at_optimum"],
++                "frontier_size": meta["pareto_root_frontier_size"],
++                "pareto_rounds": meta["pareto_hndt_max_rounds"],
++                "scalar_rounds": meta["scalar_hndt_max_rounds"],
++                "query_scale": meta["query_scale"],
++                "fault_weight_profile": meta["fault_weight_profile"],
++            }
++        )
++
++    _write_csv(out / "combined_summary.csv", combined_summary)
++    _write_csv(out / "combined_gain.csv", combined_gain)
++    _write_csv(out / "combined_metadata.csv", metadata_rows)
++    (out / "campaign_metadata.json").write_text(
++        json.dumps(
++            {
++                "campaign": str(campaign_path),
++                "fault_weight_profile": args.fault_weights,
++                "query_scale": args.query_scale,
++                "runs": [entry["name"] for entry in runs],
++            },
++            indent=2,
++        ),
++        encoding="utf-8",
++    )
++    print(out)
++
++
++if __name__ == "__main__":
++    main()
+--- a/experiments/run_experiment.py
++++ b/experiments/run_experiment.py
+@@ -19,7 +19,7 @@
+     optimal_split_atomic_policy,
+ )
+ from hndt.core import CostModel, solve_hndt, solve_hndt_round_budget
+-from hndt.evaluate import evaluate_policy, summarize
++from hndt.evaluate import evaluate_policy, summarize, weighted_mean_cost
+ from hndt.io import build_model, validate_atomic_coverage
+ from hndt.literature_baselines import (
+     literature_baselines,
+@@ -32,6 +32,7 @@
+     solve_pareto_hndt,
+ )
+ from hndt.reporting import first_split, write_csv, write_fault_paths, write_policy_json
++from hndt.sensitivity import fault_weight_profile, scale_query_costs
+ 
+ 
+ PROPOSAL_NAME = "Pareto-HNDT (minimax-safe)"
+@@ -43,13 +44,31 @@
+     p = argparse.ArgumentParser(
+         description="Run the Pareto-HNDT/CellVG ordered-trace dispute experiment"
+     )
+-    p.add_argument("--demo", action="store_true", help="Use synthetic costs only for code sanity checks")
++    p.add_argument("--demo", action="store_true", help="Use the bundled LeNet synthetic costs for code sanity checks")
++    p.add_argument("--synthetic-data", action="store_true", help="Mark explicitly supplied input files as synthetic/non-manuscript data")
+     p.add_argument("--trace", default=str(ROOT / "data" / "templates" / "lenet5_trace.csv"))
+     p.add_argument("--interval-costs", default=None)
+     p.add_argument("--query-costs", default=None)
+     p.add_argument("--config", default=None)
+     p.add_argument("--out", default=str(ROOT / "results" / "current"))
+     p.add_argument(
++        "--query-scale",
++        type=float,
++        default=1.0,
++        help="Multiply every measured query cost by this non-negative sensitivity factor.",
++    )
++    p.add_argument(
++        "--fault-weights",
++        choices=["uniform", "front", "back", "cost"],
++        default="uniform",
++        help="Transparent fault-position weighting used only for the mean objective/reporting.",
++    )
++    p.add_argument(
++        "--collect-pareto-stats",
++        action="store_true",
++        help="Record candidate/pruning/frontier statistics without changing solver decisions.",
++    )
++    p.add_argument(
+         "--fixed-g",
+         default="2,4",
+         help="Comma-separated fixed granularities to report in addition to the oracle best fixed-g ablation",
+@@ -101,11 +120,11 @@
+     return max(p.total_cost for p in paths)
+ 
+ 
+-def _mean(paths) -> float:
+-    return sum(p.total_cost for p in paths) / len(paths)
++def _mean(paths, fault_weights=None) -> float:
++    return weighted_mean_cost(paths, fault_weights)
+ 
+ 
+-def choose_best_fixed_g(model: CostModel):
++def choose_best_fixed_g(model: CostModel, fault_weights=None):
+     """Oracle-tune one global terminal granularity on the evaluated cost table."""
+ 
+     candidates = []
+@@ -115,14 +134,14 @@
+             paths = evaluate_policy(model, policy)
+         except ValueError:
+             continue
+-        candidates.append((_worst(paths), _mean(paths), g, policy, paths))
++        candidates.append((_worst(paths), _mean(paths, fault_weights), g, policy, paths))
+     if not candidates:
+         raise ValueError("No feasible fixed-g policy")
+     candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+     return candidates[0]
+ 
+ 
+-def build_literature_groups(model: CostModel):
++def build_literature_groups(model: CostModel, fault_weights=None):
+     """Execute paper adapters and deduplicate only the close system family.
+ 
+     Arbitrum/opML/Agatha can collapse to the same midpoint policy on an ordered
+@@ -135,7 +154,7 @@
+     status = []
+     for spec in literature_baselines():
+         try:
+-            policy = spec.builder(model)
++            policy = spec.builder(model, fault_weights=fault_weights) if spec.key == "hu_tucker_mean" else spec.builder(model)
+             executed.append((spec, policy))
+             status.append({"strategy": spec.display_name, "status": "executed", "reason": ""})
+         except ValueError as exc:
+@@ -235,6 +254,44 @@
+     return rows
+ 
+ 
++def build_pareto_policy_audit(pareto) -> list[dict]:
++    """Audit selected Pareto labels and their closest lexicographic alternatives."""
++
++    selected_nodes = {}
++
++    def visit(node):
++        selected_nodes[node.interval] = node
++        if node.action.kind == "split":
++            visit(node.left)
++            visit(node.right)
++
++    visit(pareto.selected)
++    rows = []
++    for interval, chosen in sorted(selected_nodes.items()):
++        alternatives = [label for label in pareto.frontier[interval] if label is not chosen]
++        alt = min(alternatives, key=lambda x: (x.worst_cost, x.mean_cost, x.max_rounds)) if alternatives else None
++        rows.append({
++            "i": interval[0],
++            "j": interval[1],
++            "span": interval[1] - interval[0],
++            "selected_action": chosen.action.kind,
++            "selected_backend": chosen.action.backend or "",
++            "selected_split": "" if chosen.action.split is None else chosen.action.split,
++            "selected_worst": chosen.worst_cost,
++            "selected_mean": chosen.mean_cost,
++            "selected_max_rounds": chosen.max_rounds,
++            "alternative_action": "" if alt is None else alt.action.kind,
++            "alternative_backend": "" if alt is None else (alt.action.backend or ""),
++            "alternative_split": "" if alt is None or alt.action.split is None else alt.action.split,
++            "alternative_worst": "" if alt is None else alt.worst_cost,
++            "alternative_mean": "" if alt is None else alt.mean_cost,
++            "delta_worst": "" if alt is None else alt.worst_cost - chosen.worst_cost,
++            "delta_mean": "" if alt is None else alt.mean_cost - chosen.mean_cost,
++            "frontier_size": len(pareto.frontier[interval]),
++        })
++    return rows
++
++
+ def main():
+     args = parse_args()
+     out = Path(args.out)
+@@ -249,10 +306,15 @@
+         interval = Path(args.interval_costs or ROOT / "data" / "templates" / "interval_costs_template.csv")
+         query = Path(args.query_costs or ROOT / "data" / "templates" / "query_costs_template.csv")
+         config = Path(args.config or ROOT / "config" / "experiment.json")
+-        marker = "REAL/USER-SUPPLIED MEASUREMENTS"
++        marker = (
++            "SYNTHETIC DEMO - NOT FOR MANUSCRIPT"
++            if args.synthetic_data
++            else "REAL/USER-SUPPLIED MEASUREMENTS"
++        )
+ 
+     try:
+         model = build_model(args.trace, interval, query, config)
++        model = scale_query_costs(model, args.query_scale)
+         missing = validate_atomic_coverage(model)
+         if missing:
+             raise ValueError(
+@@ -269,13 +331,15 @@
+         )
+         raise
+ 
++    fault_weights = fault_weight_profile(model, args.fault_weights)
++
+     # Original scalar minimax solver remains an independent regression oracle.
+     h = solve_hndt(model)
+ 
+     # Revised proposal: exact nondominated (worst, mean) frontier, followed by
+     # minimax-preserving mean minimization. Uniform fault weights are used, so
+     # no learned prior or tunable scalarization coefficient is introduced.
+-    pareto = solve_pareto_hndt(model)
++    pareto = solve_pareto_hndt(model, fault_weights=fault_weights, collect_stats=args.collect_pareto_stats)
+     if abs(pareto.worst_optimum - h.optimum) > 1e-9:
+         raise AssertionError(
+             "Pareto-HNDT must recover the scalar HNDT minimax optimum; "
+@@ -293,7 +357,7 @@
+         MEAN_FIRST_NAME: "proposal ablation",
+     }
+ 
+-    literature_executed, literature_groups, literature_status = build_literature_groups(model)
++    literature_executed, literature_groups, literature_status = build_literature_groups(model, fault_weights=fault_weights)
+     for group in literature_groups:
+         policies[group["name"]] = group["policy"]
+         categories[group["name"]] = "paper-supported baseline"
+@@ -307,7 +371,7 @@
+     categories[midpoint_stop_name] = "mechanism ablation"
+ 
+     # Strongest globally fixed granularity under oracle access to this table.
+-    best_g_cost, best_g_mean, best_g, best_g_policy, _ = choose_best_fixed_g(model)
++    best_g_cost, best_g_mean, best_g, best_g_policy, _ = choose_best_fixed_g(model, fault_weights=fault_weights)
+     best_g_name = f"Ablation: oracle best fixed-g (g={best_g})"
+     policies[best_g_name] = best_g_policy
+     categories[best_g_name] = "oracle internal ablation"
+@@ -349,23 +413,28 @@
+     # tie-selected HNDT policy at the same minimax value.
+     proposal_worst = _worst(paths[PROPOSAL_NAME])
+     scalar_worst = _worst(paths[SCALAR_HNDT_NAME])
+-    proposal_mean = _mean(paths[PROPOSAL_NAME])
+-    scalar_mean = _mean(paths[SCALAR_HNDT_NAME])
++    proposal_mean = _mean(paths[PROPOSAL_NAME], fault_weights)
++    scalar_mean = _mean(paths[SCALAR_HNDT_NAME], fault_weights)
+     if abs(proposal_worst - scalar_worst) > 1e-9:
+         raise AssertionError("Pareto-HNDT changed the exact minimax optimum")
+     if proposal_mean > scalar_mean + 1e-9:
+         raise AssertionError("Pareto-HNDT must not worsen mean cost among minimax-optimal policies")
++    if abs(proposal_mean - pareto.mean_at_worst_optimum) > 1e-8:
++        raise AssertionError(
++            "evaluated weighted mean must match Pareto objective: "
++            f"{proposal_mean} vs {pareto.mean_at_worst_optimum}"
++        )
+ 
+     summaries = []
+     for name, path_list in paths.items():
+-        row = summarize(name, path_list, pareto.worst_optimum)
++        row = summarize(name, path_list, pareto.worst_optimum, fault_weights=fault_weights)
+         row["category"] = categories[name]
+         row["first_split"] = first_split(policies[name], model.n)
+         row["mean_delta_vs_proposal"] = row["mean_cost"] - proposal_mean
+         row["worst_delta_vs_proposal"] = row["worst_case_cost"] - proposal_worst
+         summaries.append(row)
+     write_csv(out / "summary.csv", summaries)
+-    write_fault_paths(out / "fault_costs.csv", paths)
++    write_fault_paths(out / "fault_costs.csv", paths, fault_weights=fault_weights)
+     write_policy_json(out / "pareto_hndt_policy.json", pareto.policy)
+     write_policy_json(out / "hndt_scalar_policy.json", h.action)
+     write_policy_json(out / "pareto_mean_first_policy.json", policies[MEAN_FIRST_NAME])
+@@ -376,7 +445,7 @@
+     literature_individual_rows = []
+     for spec, policy in literature_executed:
+         path_list = evaluate_policy(model, policy)
+-        row = summarize(spec.display_name, path_list, pareto.worst_optimum)
++        row = summarize(spec.display_name, path_list, pareto.worst_optimum, fault_weights=fault_weights)
+         row["category"] = f"paper-supported {spec.baseline_class} adaptation"
+         row["first_split"] = first_split(policy, model.n)
+         row["policy_signature"] = repr(policy_signature(policy))
+@@ -422,6 +491,7 @@
+ 
+     # The old scalar audit remains useful as a sensitivity diagnostic.
+     write_csv(out / "hndt_scalar_policy_audit.csv", build_policy_audit(model, h))
++    write_csv(out / "pareto_policy_audit.csv", build_pareto_policy_audit(pareto))
+ 
+     # Proposal-component ablation: split adaptivity, stopping adaptivity, and
+     # minimax-safe secondary mean optimization are separated explicitly.
+@@ -454,9 +524,9 @@
+                 "adaptive_stop": adaptive_stop,
+                 "minimax_safe_mean_refinement": secondary_mean,
+                 "worst_case_cost": _worst(path_list),
+-                "mean_cost": _mean(path_list),
++                "mean_cost": _mean(path_list, fault_weights),
+                 "worst_delta_vs_proposal": _worst(path_list) - proposal_worst,
+-                "mean_delta_vs_proposal": _mean(path_list) - proposal_mean,
++                "mean_delta_vs_proposal": _mean(path_list, fault_weights) - proposal_mean,
+                 "ratio_to_proposal_worst": _worst(path_list) / proposal_worst,
+                 "max_rounds": max(p.rounds for p in path_list),
+                 "first_split": first_split(policies[name], model.n),
+@@ -500,7 +570,7 @@
+     # Heterogeneity ablation now reports both Pareto objectives.
+     hom = homogenized_model(model)
+     hh = solve_hndt(hom)
+-    ph = solve_pareto_hndt(hom)
++    ph = solve_pareto_hndt(hom, fault_weights=fault_weights)
+     hom_paths = evaluate_policy(hom, ph.policy)
+     ablation = [
+         {
+@@ -514,7 +584,7 @@
+         {
+             "cost_model": "homogenized",
+             "optimal_worst_case_cost": ph.worst_optimum,
+-            "mean_cost_at_minimax": _mean(hom_paths),
++            "mean_cost_at_minimax": _mean(hom_paths, fault_weights),
+             "first_action": first_split(ph.policy, model.n),
+             "max_rounds": max(p.rounds for p in hom_paths),
+             "root_frontier_size": len(ph.root_frontier),
+@@ -550,6 +620,9 @@
+         "query_costs": str(query),
+         "config": str(config),
+         "n": model.n,
++        "query_scale": args.query_scale,
++        "fault_weight_profile": args.fault_weights,
++        "fault_weights": list(fault_weights),
+         "proposal": PROPOSAL_NAME,
+         "pareto_hndt_worst_optimum": pareto.worst_optimum,
+         "pareto_hndt_mean_at_optimum": pareto.mean_at_worst_optimum,
+@@ -570,8 +643,22 @@
+             if row["status"] != "executed"
+         ],
+         "round_budget": args.round_budget,
++        "pareto_stats": (
++            None
++            if pareto.stats is None
++            else {
++                "intervals": pareto.stats.intervals,
++                "candidates_generated": pareto.stats.candidates_generated,
++                "labels_retained": pareto.stats.labels_retained,
++                "duplicate_pruned": pareto.stats.duplicate_pruned,
++                "dominated_pruned": pareto.stats.dominated_pruned,
++                "peak_frontier_size": pareto.stats.peak_frontier_size,
++                "peak_candidates_per_interval": pareto.stats.peak_candidates_per_interval,
++                "pruning_ratio": pareto.stats.pruning_ratio,
++            }
++        ),
+         "method_note": (
+-            "Pareto-HNDT computes the exact nondominated frontier of worst-case and uniform-mean "
++            "Pareto-HNDT computes the exact nondominated frontier of worst-case and weighted-mean "
+             "fault-path cost, then preserves the exact scalar HNDT minimax optimum while minimizing "
+             "mean cost among all minimax-optimal policies. No scalarization hyperparameter is used."
+         ),
+--- /dev/null
++++ b/experiments/run_robustness.py
+@@ -0,0 +1,143 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++"""Bounded measurement-noise stability analysis for Pareto-HNDT."""
++
++import argparse
++import json
++import statistics
++import sys
++from collections import defaultdict
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++from hndt.core import solve_hndt
++from hndt.evaluate import evaluate_policy, weighted_mean_cost
++from hndt.io import build_model, validate_atomic_coverage
++from hndt.literature_baselines import policy_signature
++from hndt.pareto import solve_pareto_hndt
++from hndt.reporting import first_split, write_csv
++from hndt.sensitivity import fault_weight_profile, perturb_cost_model
++
++
++def _parse_levels(value: str) -> list[float]:
++    levels = [float(x.strip()) for x in value.split(",") if x.strip()]
++    if not levels or any(x < 0 or x >= 1 for x in levels):
++        raise ValueError("noise levels must satisfy 0 <= level < 1")
++    return levels
++
++
++def main() -> None:
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--trace", required=True)
++    ap.add_argument("--interval-costs", required=True)
++    ap.add_argument("--query-costs", required=True)
++    ap.add_argument("--config", required=True)
++    ap.add_argument("--out", required=True)
++    ap.add_argument("--noise-levels", default="0.01,0.025,0.05")
++    ap.add_argument("--trials", type=int, default=100)
++    ap.add_argument("--seed", type=int, default=1729)
++    ap.add_argument("--fault-weights", choices=["uniform", "front", "back", "cost"], default="uniform")
++    ap.add_argument("--terminal-only", action="store_true", help="Perturb terminal costs but leave query costs fixed")
++    args = ap.parse_args()
++    if args.trials <= 0:
++        raise ValueError("trials must be positive")
++
++    base = build_model(args.trace, args.interval_costs, args.query_costs, args.config)
++    missing = validate_atomic_coverage(base)
++    if missing:
++        raise ValueError(f"missing atomic costs: {missing}")
++    base_weights = fault_weight_profile(base, args.fault_weights)
++    ref_scalar = solve_hndt(base)
++    ref_pareto = solve_pareto_hndt(base, fault_weights=base_weights)
++    ref_signature = policy_signature(ref_pareto.policy)
++    ref_first = first_split(ref_pareto.policy, base.n)
++
++    rows = []
++    levels = _parse_levels(args.noise_levels)
++    for level_index, noise in enumerate(levels):
++        for trial in range(args.trials):
++            seed = args.seed + level_index * 100000 + trial
++            model = perturb_cost_model(
++                base,
++                relative_noise=noise,
++                seed=seed,
++                perturb_queries=not args.terminal_only,
++            )
++            weights = fault_weight_profile(model, args.fault_weights)
++            scalar = solve_hndt(model)
++            pareto = solve_pareto_hndt(model, fault_weights=weights)
++            p_paths = evaluate_policy(model, pareto.policy)
++            s_paths = evaluate_policy(model, scalar.action)
++            p_mean = weighted_mean_cost(p_paths, weights)
++            s_mean = weighted_mean_cost(s_paths, weights)
++            exact_recovery = abs(pareto.worst_optimum - scalar.optimum) <= 1e-8
++            rows.append(
++                {
++                    "noise_fraction": noise,
++                    "noise_percent": noise * 100.0,
++                    "trial": trial,
++                    "seed": seed,
++                    "pareto_worst": pareto.worst_optimum,
++                    "scalar_worst": scalar.optimum,
++                    "minimax_recovered": exact_recovery,
++                    "pareto_mean": p_mean,
++                    "scalar_mean": s_mean,
++                    "mean_improvement_percent": 100.0 * (s_mean - p_mean) / s_mean if s_mean else 0.0,
++                    "same_root_action": first_split(pareto.policy, model.n) == ref_first,
++                    "same_full_policy": policy_signature(pareto.policy) == ref_signature,
++                    "root_frontier_size": len(pareto.root_frontier),
++                }
++            )
++            if not exact_recovery:
++                raise AssertionError("Pareto minimax projection failed under perturbed costs")
++
++    out = Path(args.out)
++    out.mkdir(parents=True, exist_ok=True)
++    write_csv(out / "robustness_trials.csv", rows)
++
++    grouped = defaultdict(list)
++    for row in rows:
++        grouped[row["noise_fraction"]].append(row)
++    summary = []
++    for noise in levels:
++        subset = grouped[noise]
++        gains = [float(r["mean_improvement_percent"]) for r in subset]
++        summary.append(
++            {
++                "noise_fraction": noise,
++                "noise_percent": noise * 100.0,
++                "trials": len(subset),
++                "minimax_recovery_rate": sum(bool(r["minimax_recovered"]) for r in subset) / len(subset),
++                "same_root_action_rate": sum(bool(r["same_root_action"]) for r in subset) / len(subset),
++                "same_full_policy_rate": sum(bool(r["same_full_policy"]) for r in subset) / len(subset),
++                "mean_gain_percent_average": statistics.fmean(gains),
++                "mean_gain_percent_min": min(gains),
++                "mean_gain_percent_max": max(gains),
++            }
++        )
++    write_csv(out / "robustness_summary.csv", summary)
++    (out / "robustness_metadata.json").write_text(
++        json.dumps(
++            {
++                "noise_levels": levels,
++                "trials_per_level": args.trials,
++                "seed": args.seed,
++                "fault_weight_profile": args.fault_weights,
++                "perturb_queries": not args.terminal_only,
++                "reference_first_action": ref_first,
++                "reference_worst": ref_scalar.optimum,
++                "note": "Sensitivity analysis only; original measured inputs are never overwritten.",
++            },
++            indent=2,
++        ),
++        encoding="utf-8",
++    )
++    print(out)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/experiments/run_scalability.py
+@@ -0,0 +1,130 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++"""Synthetic solver scalability/frontier-size experiment.
++
++This benchmark studies algorithmic scaling only.  Costs are deterministic
++synthetic families and outputs are marked NOT FOR MANUSCRIPT REAL-COST CLAIMS.
++"""
++
++import argparse
++import math
++import sys
++import time
++import tracemalloc
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++from hndt.core import CostModel, solve_hndt
++from hndt.pareto import solve_pareto_hndt
++from hndt.reporting import write_csv
++
++
++def _parse_ints(value: str) -> list[int]:
++    data = [int(x.strip()) for x in value.split(",") if x.strip()]
++    if not data or any(x <= 0 for x in data):
++        raise ValueError("sizes must be positive integers")
++    return data
++
++
++def atomic_costs(n: int, family: str) -> list[float]:
++    if family == "homogeneous":
++        return [100.0] * n
++    if family == "mild":
++        pattern = [82.0, 91.0, 103.0, 117.0, 109.0, 96.0]
++        return [pattern[i % len(pattern)] for i in range(n)]
++    if family == "strong":
++        pattern = [18.0, 35.0, 70.0, 140.0, 280.0, 560.0, 45.0, 95.0]
++        return [pattern[i % len(pattern)] for i in range(n)]
++    raise ValueError("family must be homogeneous, mild, or strong")
++
++
++def synthetic_model(n: int, family: str, max_span: int = 4) -> CostModel:
++    atomic = atomic_costs(n, family)
++    terminal = {}
++    for span in range(1, min(max_span, n) + 1):
++        for i in range(0, n - span + 1):
++            j = i + span
++            raw_sum = sum(atomic[i:j])
++            # Interval verification receives a deterministic amortisation benefit.
++            # This creates a nontrivial stop/split choice while remaining transparent.
++            native = 12.0 + (0.90 if span > 1 else 1.0) * raw_sum
++            terminal[(i, j)] = {"native": native}
++
++    query = 22.0
++    return CostModel(n, terminal, lambda i, j, k: query)
++
++
++def run_one(n: int, family: str, max_span: int) -> dict:
++    model = synthetic_model(n, family, max_span=max_span)
++
++    t0 = time.perf_counter()
++    scalar = solve_hndt(model)
++    scalar_seconds = time.perf_counter() - t0
++
++    tracemalloc.start()
++    t0 = time.perf_counter()
++    pareto = solve_pareto_hndt(model, collect_stats=True)
++    pareto_seconds = time.perf_counter() - t0
++    _, peak = tracemalloc.get_traced_memory()
++    tracemalloc.stop()
++
++    if abs(pareto.worst_optimum - scalar.optimum) > 1e-9:
++        raise AssertionError("Pareto solver failed to recover scalar minimax optimum")
++    stats = pareto.stats
++    assert stats is not None
++    num_intervals = n * (n + 1) // 2
++    return {
++        "data_status": "SYNTHETIC SCALABILITY - NOT REAL CKB COSTS",
++        "family": family,
++        "n": n,
++        "max_measured_span": max_span,
++        "subproblem_intervals": num_intervals,
++        "scalar_seconds": scalar_seconds,
++        "pareto_seconds": pareto_seconds,
++        "pareto_to_scalar_time_ratio": pareto_seconds / scalar_seconds if scalar_seconds else math.inf,
++        "peak_python_memory_mb": peak / (1024 * 1024),
++        "scalar_worst": scalar.optimum,
++        "pareto_worst": pareto.worst_optimum,
++        "root_frontier_size": len(pareto.root_frontier),
++        "peak_frontier_size": stats.peak_frontier_size,
++        "candidates_generated": stats.candidates_generated,
++        "labels_retained": stats.labels_retained,
++        "duplicate_pruned": stats.duplicate_pruned,
++        "dominated_pruned": stats.dominated_pruned,
++        "pruning_ratio": stats.pruning_ratio,
++        "peak_candidates_per_interval": stats.peak_candidates_per_interval,
++    }
++
++
++def main() -> None:
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--sizes", default="12,24,48")
++    ap.add_argument("--families", default="homogeneous,mild,strong")
++    ap.add_argument("--max-span", type=int, default=4)
++    ap.add_argument("--out", default=str(ROOT / "results" / "scalability" / "scalability.csv"))
++    args = ap.parse_args()
++    if args.max_span <= 0:
++        raise ValueError("max-span must be positive")
++    sizes = _parse_ints(args.sizes)
++    families = [x.strip() for x in args.families.split(",") if x.strip()]
++
++    rows = []
++    for family in families:
++        for n in sizes:
++            row = run_one(n, family, args.max_span)
++            rows.append(row)
++            print(
++                f"family={family} n={n} pareto={row['pareto_seconds']:.4f}s "
++                f"peakP={row['peak_frontier_size']} prune={row['pruning_ratio']:.3f}"
++            )
++    out = Path(args.out)
++    write_csv(out, rows)
++    print(out)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/experiments/run_sensitivity.py
+@@ -0,0 +1,138 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++"""Predefined query-cost and fault-weight sensitivity experiments.
++
++No sweep parameter is selected from the observed result.  The default grid is
++fixed in advance and the reference point is query_scale=1, uniform weights.
++"""
++
++import argparse
++import csv
++import json
++import sys
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++from hndt.baselines import hu_tucker_atomic_policy
++from hndt.core import solve_hndt
++from hndt.evaluate import evaluate_policy, summarize
++from hndt.io import build_model, validate_atomic_coverage
++from hndt.pareto import solve_pareto_hndt
++from hndt.reporting import first_split, write_csv
++from hndt.sensitivity import fault_weight_profile, scale_query_costs
++
++
++def _parse_scales(value: str) -> list[float]:
++    scales = [float(x.strip()) for x in value.split(",") if x.strip()]
++    if not scales or any(x < 0 for x in scales):
++        raise ValueError("query scales must be a non-empty list of non-negative values")
++    return scales
++
++
++def _row(model, *, label: str, profile: str, query_scale: float) -> dict:
++    weights = fault_weight_profile(model, profile)
++    scalar = solve_hndt(model)
++    pareto = solve_pareto_hndt(model, fault_weights=weights, collect_stats=True)
++    if abs(scalar.optimum - pareto.worst_optimum) > 1e-9:
++        raise AssertionError("Pareto minimax projection differs from scalar HNDT")
++
++    p_paths = evaluate_policy(model, pareto.policy)
++    s_paths = evaluate_policy(model, scalar.action)
++    p = summarize("Pareto-HNDT", p_paths, scalar.optimum, fault_weights=weights)
++    s = summarize("Scalar HNDT", s_paths, scalar.optimum, fault_weights=weights)
++
++    try:
++        ht_policy = hu_tucker_atomic_policy(model, fault_weights=weights)
++        ht = summarize(
++            "Hu-Tucker objective",
++            evaluate_policy(model, ht_policy),
++            scalar.optimum,
++            fault_weights=weights,
++        )
++        ht_worst, ht_mean = ht["worst_case_cost"], ht["mean_cost"]
++    except ValueError:
++        ht_worst, ht_mean = "", ""
++
++    return {
++        "experiment": label,
++        "fault_weight_profile": profile,
++        "query_scale": query_scale,
++        "pareto_worst": p["worst_case_cost"],
++        "scalar_worst": s["worst_case_cost"],
++        "pareto_mean": p["mean_cost"],
++        "scalar_mean": s["mean_cost"],
++        "mean_improvement": s["mean_cost"] - p["mean_cost"],
++        "mean_improvement_percent": (
++            100.0 * (s["mean_cost"] - p["mean_cost"]) / s["mean_cost"]
++            if s["mean_cost"]
++            else 0.0
++        ),
++        "pareto_max_rounds": p["max_rounds"],
++        "scalar_max_rounds": s["max_rounds"],
++        "pareto_first_split": first_split(pareto.policy, model.n),
++        "scalar_first_split": first_split(scalar.action, model.n),
++        "root_frontier_size": len(pareto.root_frontier),
++        "peak_frontier_size": pareto.stats.peak_frontier_size if pareto.stats else "",
++        "candidates_generated": pareto.stats.candidates_generated if pareto.stats else "",
++        "pruning_ratio": pareto.stats.pruning_ratio if pareto.stats else "",
++        "hu_tucker_worst": ht_worst,
++        "hu_tucker_mean": ht_mean,
++    }
++
++
++def main() -> None:
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--trace", required=True)
++    ap.add_argument("--interval-costs", required=True)
++    ap.add_argument("--query-costs", required=True)
++    ap.add_argument("--config", required=True)
++    ap.add_argument("--out", required=True)
++    ap.add_argument("--query-scales", default="0.25,0.5,1,2,4")
++    ap.add_argument("--fault-profiles", default="uniform,front,back,cost")
++    args = ap.parse_args()
++
++    base = build_model(args.trace, args.interval_costs, args.query_costs, args.config)
++    missing = validate_atomic_coverage(base)
++    if missing:
++        raise ValueError(f"missing atomic costs: {missing}")
++
++    scales = _parse_scales(args.query_scales)
++    profiles = [x.strip() for x in args.fault_profiles.split(",") if x.strip()]
++    out = Path(args.out)
++    out.mkdir(parents=True, exist_ok=True)
++
++    query_rows = []
++    for scale in scales:
++        model = scale_query_costs(base, scale)
++        query_rows.append(_row(model, label="query_cost", profile="uniform", query_scale=scale))
++    write_csv(out / "query_sensitivity.csv", query_rows)
++
++    weight_rows = []
++    for profile in profiles:
++        weight_rows.append(_row(base, label="fault_weights", profile=profile, query_scale=1.0))
++    write_csv(out / "fault_weight_sensitivity.csv", weight_rows)
++
++    (out / "sensitivity_metadata.json").write_text(
++        json.dumps(
++            {
++                "trace": args.trace,
++                "interval_costs": args.interval_costs,
++                "query_costs": args.query_costs,
++                "config": args.config,
++                "query_scales": scales,
++                "fault_profiles": profiles,
++                "note": "Sensitivity only; no parameter is selected to maximize the proposal gain.",
++            },
++            indent=2,
++        ),
++        encoding="utf-8",
++    )
++    print(out)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/experiments/run_v5_suite.py
+@@ -0,0 +1,111 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++"""One-command V5 evidence suite.
++
++Demo mode uses only clearly labelled synthetic data. Real mode requires an
++explicit campaign JSON whose entries point to real ckb-debugger measurements;
++missing measurements are never replaced by synthetic values.
++"""
++
++import argparse
++import json
++import subprocess
++import sys
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent
++
++
++def run(cmd: list[str]) -> None:
++    print("+", " ".join(cmd))
++    subprocess.run(cmd, check=True, cwd=ROOT.parent)
++
++
++def resolve(path: str) -> Path:
++    p = Path(path)
++    return p if p.is_absolute() else ROOT / p
++
++
++def main() -> None:
++    ap = argparse.ArgumentParser()
++    ap.add_argument("--mode", choices=["demo", "real"], default="demo")
++    ap.add_argument("--campaign", default=None)
++    ap.add_argument("--out", default=str(ROOT / "results" / "v5_suite"))
++    ap.add_argument("--robustness-trials", type=int, default=100)
++    ap.add_argument("--scalability-sizes", default="12,24,48")
++    args = ap.parse_args()
++
++    if args.robustness_trials <= 0:
++        raise ValueError("robustness-trials must be positive")
++
++    campaign = Path(
++        args.campaign
++        or (
++            ROOT / "config" / "campaign_demo.json"
++            if args.mode == "demo"
++            else ROOT / "config" / "campaign_real.example.json"
++        )
++    )
++    cfg = json.loads(campaign.read_text(encoding="utf-8"))
++    runs = cfg.get("runs", [])
++    if not runs:
++        raise ValueError("campaign contains no runs")
++    if args.mode == "real" and any(bool(entry.get("synthetic", False)) for entry in runs):
++        raise ValueError("real mode refuses campaign entries marked synthetic")
++
++    out = Path(args.out)
++    out.mkdir(parents=True, exist_ok=True)
++
++    run([
++        sys.executable,
++        str(ROOT / "run_campaign.py"),
++        "--campaign", str(campaign),
++        "--out", str(out / "campaign"),
++    ])
++
++    for entry in runs:
++        name = str(entry["name"])
++        common = [
++            "--trace", str(resolve(entry["trace"])),
++            "--interval-costs", str(resolve(entry["interval_costs"])),
++            "--query-costs", str(resolve(entry["query_costs"])),
++            "--config", str(resolve(entry["config"])),
++        ]
++        run([
++            sys.executable,
++            str(ROOT / "run_sensitivity.py"),
++            *common,
++            "--out", str(out / "sensitivity" / name),
++        ])
++        run([
++            sys.executable,
++            str(ROOT / "run_robustness.py"),
++            *common,
++            "--out", str(out / "robustness" / name),
++            "--trials", str(args.robustness_trials),
++        ])
++
++    run([
++        sys.executable,
++        str(ROOT / "run_scalability.py"),
++        "--sizes", args.scalability_sizes,
++        "--out", str(out / "scalability" / "scalability.csv"),
++    ])
++
++    (out / "SUITE_STATUS.txt").write_text(
++        "V5 evidence suite completed.\n"
++        f"Mode: {args.mode}\n"
++        f"Campaign: {campaign}\n"
++        + (
++            "All campaign inputs were required to be real/user-supplied measurements.\n"
++            if args.mode == "real"
++            else "Synthetic demo mode: outputs are NOT FOR MANUSCRIPT.\n"
++        ),
++        encoding="utf-8",
++    )
++    print(out)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/experiments/tests/test_trace_log_parser.py
+@@ -0,0 +1,41 @@
++import sys
++import tempfile
++import unittest
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[2]
++CKB = ROOT / "ckb_bench"
++if str(CKB) not in sys.path:
++    sys.path.insert(0, str(CKB))
++
++import parse_trace_logs
++
++
++class TraceLogParserTests(unittest.TestCase):
++    def test_generic_parser_accepts_complete_small_trace(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp)
++            for i, j in sorted(parse_trace_logs.expected_intervals(3, 2)):
++                (root / f"conv_heavy_{i}_{j}.log").write_text(
++                    f"Total cycles consumed: {100 + i + j}", encoding="utf-8"
++                )
++            rows = parse_trace_logs.parse_trace_directory(
++                root, trace="conv_heavy", n=3, max_span=2, strict=True
++            )
++            self.assertEqual(len(rows), 5)
++            self.assertTrue(all(row["source"] == "ckb-debugger" for row in rows))
++
++    def test_generic_parser_rejects_missing_logs(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            root = Path(tmp)
++            (root / "gemm_heavy_0_1.log").write_text(
++                "Total cycles consumed: 100", encoding="utf-8"
++            )
++            with self.assertRaises(ValueError):
++                parse_trace_logs.parse_trace_directory(
++                    root, trace="gemm_heavy", n=3, max_span=2, strict=True
++                )
++
++
++if __name__ == "__main__":
++    unittest.main()
+--- /dev/null
++++ b/experiments/tests/test_v5_extensions.py
+@@ -0,0 +1,93 @@
++import math
++import sys
++import unittest
++from pathlib import Path
++
++EXP = Path(__file__).resolve().parents[1]
++ROOT = EXP.parent
++CKB = ROOT / "ckb_bench"
++for path in (str(EXP), str(CKB)):
++    if path not in sys.path:
++        sys.path.insert(0, path)
++
++from hndt.core import CostModel, solve_hndt
++from hndt.evaluate import evaluate_policy, summarize, weighted_mean_cost
++from hndt.pareto import solve_pareto_hndt
++from hndt.sensitivity import fault_weight_profile, perturb_cost_model, scale_query_costs
++import generate_trace_vectors
++import parse_trace_logs
++
++
++class V5ExtensionTests(unittest.TestCase):
++    def setUp(self):
++        terminal = {
++            (0, 1): {"native": 10.0},
++            (1, 2): {"native": 2.0},
++            (2, 3): {"native": 8.0},
++            (3, 4): {"native": 3.0},
++            (0, 2): {"native": 9.0},
++            (2, 4): {"native": 8.5},
++        }
++        self.model = CostModel(4, terminal, lambda i, j, k: 1.5)
++
++    def test_pareto_stats_do_not_change_solution(self):
++        a = solve_pareto_hndt(self.model)
++        b = solve_pareto_hndt(self.model, collect_stats=True)
++        self.assertEqual(a.worst_optimum, b.worst_optimum)
++        self.assertEqual(a.mean_at_worst_optimum, b.mean_at_worst_optimum)
++        self.assertEqual(a.policy, b.policy)
++        self.assertIsNotNone(b.stats)
++        self.assertGreater(b.stats.candidates_generated, 0)
++        self.assertGreaterEqual(b.stats.peak_frontier_size, 1)
++        self.assertGreaterEqual(b.stats.pruning_ratio, 0.0)
++        self.assertLessEqual(b.stats.pruning_ratio, 1.0)
++
++    def test_query_scaling_is_exact(self):
++        scaled = scale_query_costs(self.model, 2.5)
++        self.assertEqual(scaled.checked_query_cost(0, 4, 2), 3.75)
++        self.assertEqual(scaled.terminal_costs, self.model.terminal_costs)
++
++    def test_fault_weight_profiles_normalize(self):
++        for profile in ("uniform", "front", "back", "cost"):
++            weights = fault_weight_profile(self.model, profile)
++            self.assertEqual(len(weights), 4)
++            self.assertAlmostEqual(sum(weights), 1.0)
++            self.assertTrue(all(x >= 0 for x in weights))
++
++    def test_weighted_reporting_matches_pareto_objective(self):
++        weights = fault_weight_profile(self.model, "front")
++        result = solve_pareto_hndt(self.model, fault_weights=weights)
++        paths = evaluate_policy(self.model, result.policy)
++        self.assertAlmostEqual(weighted_mean_cost(paths, weights), result.mean_at_worst_optimum)
++        row = summarize("p", paths, result.worst_optimum, fault_weights=weights)
++        self.assertAlmostEqual(row["mean_cost"], result.mean_at_worst_optimum)
++
++    def test_perturbation_is_deterministic_and_minimax_safe(self):
++        a = perturb_cost_model(self.model, relative_noise=0.05, seed=7)
++        b = perturb_cost_model(self.model, relative_noise=0.05, seed=7)
++        self.assertEqual(a.terminal_costs, b.terminal_costs)
++        self.assertEqual(a.checked_query_cost(0, 4, 2), b.checked_query_cost(0, 4, 2))
++        scalar = solve_hndt(a)
++        pareto = solve_pareto_hndt(a)
++        self.assertAlmostEqual(scalar.optimum, pareto.worst_optimum)
++
++
++    def test_rust_trace_selection_is_compile_time_isolated(self):
++        main_rs = (ROOT / "ckb_bench" / "src" / "main.rs").read_text(encoding="utf-8")
++        build_rs = (ROOT / "ckb_bench" / "build.rs").read_text(encoding="utf-8")
++        self.assertIn("BENCH_TRACE", build_rs)
++        self.assertIn("trace_conv_heavy", build_rs)
++        self.assertIn("trace_gemm_heavy", build_rs)
++        self.assertIn("#[cfg(any(trace_conv_heavy, trace_gemm_heavy))]", main_rs)
++        self.assertIn("#[cfg(not(any(trace_conv_heavy, trace_gemm_heavy)))]", main_rs)
++
++    def test_extra_trace_bundles_have_42_measured_intervals(self):
++        for bundle in (generate_trace_vectors.build_conv_heavy(), generate_trace_vectors.build_gemm_heavy()):
++            self.assertEqual(len(bundle.states), 13)
++            self.assertEqual(len(bundle.ops), 12)
++            self.assertTrue(generate_trace_vectors.self_check_bundle(bundle))
++            self.assertEqual(len(parse_trace_logs.expected_intervals(12, 4)), 42)
++
++
++if __name__ == "__main__":
++    unittest.main()

@@ -48,6 +48,27 @@ class ParetoLabel:
     right: Optional["ParetoLabel"] = None
 
 
+
+
+@dataclass
+class ParetoStats:
+    """Optional solver instrumentation; never participates in policy decisions."""
+
+    intervals: int = 0
+    candidates_generated: int = 0
+    labels_retained: int = 0
+    duplicate_pruned: int = 0
+    dominated_pruned: int = 0
+    peak_frontier_size: int = 0
+    peak_candidates_per_interval: int = 0
+
+    @property
+    def pruning_ratio(self) -> float:
+        if self.candidates_generated == 0:
+            return 0.0
+        return 1.0 - (self.labels_retained / self.candidates_generated)
+
+
 @dataclass
 class ParetoHNDTResult:
     """Exact Pareto-HNDT result for all intervals."""
@@ -57,6 +78,7 @@ class ParetoHNDTResult:
     frontier: Dict[Interval, Tuple[ParetoLabel, ...]]
     selected: ParetoLabel
     policy: Dict[Interval, Action]
+    stats: Optional[ParetoStats] = None
 
     @property
     def worst_optimum(self) -> float:
@@ -142,16 +164,11 @@ def _dominates(a: ParetoLabel, b: ParetoLabel, tol: float) -> bool:
     return no_worse and strictly_better
 
 
-def prune_nondominated(
+def _prune_nondominated_with_counts(
     labels: Iterable[ParetoLabel],
     tie_tolerance: float = 1e-12,
-) -> Tuple[ParetoLabel, ...]:
-    """Return a deterministic exact 2-D nondominated frontier.
-
-    Equal objective pairs are collapsed using only tertiary policy preferences
-    (fewer rounds, then deterministic action ordering).  Dominance itself is
-    based solely on the two scientific objectives.
-    """
+) -> tuple[Tuple[ParetoLabel, ...], int, int, int]:
+    """Return frontier plus duplicate/dominance counts for diagnostics."""
 
     if tie_tolerance < 0 or isnan(float(tie_tolerance)):
         raise ValueError("tie_tolerance must be non-negative and not NaN")
@@ -184,7 +201,27 @@ def prune_nondominated(
         frontier.append(label)
 
     frontier.sort(key=lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x)))
-    return tuple(frontier)
+    return (
+        tuple(frontier),
+        len(finite) - len(unique),
+        len(unique) - len(frontier),
+        len(finite),
+    )
+
+
+def prune_nondominated(
+    labels: Iterable[ParetoLabel],
+    tie_tolerance: float = 1e-12,
+) -> Tuple[ParetoLabel, ...]:
+    """Return a deterministic exact 2-D nondominated frontier.
+
+    Equal objective pairs are collapsed using only tertiary policy preferences
+    (fewer rounds, then deterministic action ordering).  Dominance itself is
+    based solely on the two scientific objectives.
+    """
+
+    frontier, _, _, _ = _prune_nondominated_with_counts(labels, tie_tolerance)
+    return frontier
 
 
 def reconstruct_policy(label: ParetoLabel) -> Dict[Interval, Action]:
@@ -237,6 +274,7 @@ def solve_pareto_hndt(
     model: CostModel,
     fault_weights: Optional[Sequence[float]] = None,
     tie_tolerance: float = 1e-12,
+    collect_stats: bool = False,
 ) -> ParetoHNDTResult:
     """Compute the exact Pareto frontier for HNDT's stop-or-split strategy space.
 
@@ -258,6 +296,7 @@ def solve_pareto_hndt(
         return prefix[j] - prefix[i]
 
     frontier: Dict[Interval, Tuple[ParetoLabel, ...]] = {}
+    stats = ParetoStats() if collect_stats else None
 
     for length in range(1, n + 1):
         for i in range(0, n - length + 1):
@@ -304,7 +343,19 @@ def solve_pareto_hndt(
                                 )
                             )
 
-            current = prune_nondominated(candidates, tie_tolerance=tie_tolerance)
+            current, duplicate_pruned, dominated_pruned, finite_candidates = _prune_nondominated_with_counts(
+                candidates, tie_tolerance=tie_tolerance
+            )
+            if stats is not None:
+                stats.intervals += 1
+                stats.candidates_generated += finite_candidates
+                stats.labels_retained += len(current)
+                stats.duplicate_pruned += duplicate_pruned
+                stats.dominated_pruned += dominated_pruned
+                stats.peak_frontier_size = max(stats.peak_frontier_size, len(current))
+                stats.peak_candidates_per_interval = max(
+                    stats.peak_candidates_per_interval, finite_candidates
+                )
             if not current:
                 raise ValueError(
                     f"Interval [{i},{j}] is unsolvable in Pareto-HNDT: no finite "
@@ -321,6 +372,7 @@ def solve_pareto_hndt(
         frontier=frontier,
         selected=selected,
         policy=policy,
+        stats=stats,
     )
 
 

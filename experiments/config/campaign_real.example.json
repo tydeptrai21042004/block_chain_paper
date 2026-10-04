@@ -1,0 +1,29 @@
+{
+  "notes": "Populate the three measurement CSVs by running ckb_bench/run_trace_intervals.sh for each trace. No synthetic costs are substituted.",
+  "runs": [
+    {
+      "name": "lenet",
+      "trace": "data/traces/lenet_trace.csv",
+      "interval_costs": "../ckb_bench/lenet_interval_measurements.csv",
+      "query_costs": "data/templates/query_costs_template.csv",
+      "config": "config/experiment.json",
+      "synthetic": false
+    },
+    {
+      "name": "conv_heavy",
+      "trace": "data/traces/conv_heavy_trace.csv",
+      "interval_costs": "../ckb_bench/conv_heavy_interval_measurements.csv",
+      "query_costs": "data/templates/query_costs_template.csv",
+      "config": "config/experiment.json",
+      "synthetic": false
+    },
+    {
+      "name": "gemm_heavy",
+      "trace": "data/traces/gemm_heavy_trace.csv",
+      "interval_costs": "../ckb_bench/gemm_heavy_interval_measurements.csv",
+      "query_costs": "data/templates/query_costs_template.csv",
+      "config": "config/experiment.json",
+      "synthetic": false
+    }
+  ]
+}

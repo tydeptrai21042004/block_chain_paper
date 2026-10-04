@@ -1,0 +1,29 @@
+{
+  "notes": "Synthetic multi-trace software campaign. NOT FOR MANUSCRIPT.",
+  "runs": [
+    {
+      "name": "lenet",
+      "trace": "data/traces/lenet_trace.csv",
+      "interval_costs": "data/demo/interval_costs_lenet_demo.csv",
+      "query_costs": "data/demo/query_costs_demo.csv",
+      "config": "config/demo.json",
+      "synthetic": true
+    },
+    {
+      "name": "conv_heavy",
+      "trace": "data/traces/conv_heavy_trace.csv",
+      "interval_costs": "data/demo/interval_costs_conv_heavy_demo.csv",
+      "query_costs": "data/demo/query_costs_demo.csv",
+      "config": "config/demo.json",
+      "synthetic": true
+    },
+    {
+      "name": "gemm_heavy",
+      "trace": "data/traces/gemm_heavy_trace.csv",
+      "interval_costs": "data/demo/interval_costs_gemm_heavy_demo.csv",
+      "query_costs": "data/demo/query_costs_demo.csv",
+      "config": "config/demo.json",
+      "synthetic": true
+    }
+  ]
+}

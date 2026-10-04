@@ -1,0 +1,13 @@
+index,name,kind,input_shape,output_shape,notes
+0,conv1,Conv2D,1x32x32,4x30x30,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+1,relu1,ReLU,4x30x30,4x30x30,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+2,conv2,Conv2D,4x30x30,4x28x28,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+3,relu2,ReLU,4x28x28,4x28x28,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+4,pool1,MaxPool2D,4x28x28,4x14x14,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+5,conv3,Conv2D,4x14x14,8x12x12,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+6,relu3,ReLU,8x12x12,8x12x12,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+7,pool2,MaxPool2D,8x12x12,8x6x6,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+8,flatten,Flatten,8x6x6,288,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+9,fc1,GEMM,288,64,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+10,relu4,ReLU,64,64,Deterministic conv_heavy verification trace; accuracy is not evaluated.
+11,fc2,GEMM,64,10,Deterministic conv_heavy verification trace; accuracy is not evaluated.

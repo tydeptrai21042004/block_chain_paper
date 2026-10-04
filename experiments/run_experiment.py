@@ -19,7 +19,7 @@ from hndt.baselines import (
     optimal_split_atomic_policy,
 )
 from hndt.core import CostModel, solve_hndt, solve_hndt_round_budget
-from hndt.evaluate import evaluate_policy, summarize
+from hndt.evaluate import evaluate_policy, summarize, weighted_mean_cost
 from hndt.io import build_model, validate_atomic_coverage
 from hndt.literature_baselines import (
     literature_baselines,
@@ -32,6 +32,7 @@ from hndt.pareto import (
     solve_pareto_hndt,
 )
 from hndt.reporting import first_split, write_csv, write_fault_paths, write_policy_json
+from hndt.sensitivity import fault_weight_profile, scale_query_costs
 
 
 PROPOSAL_NAME = "Pareto-HNDT (minimax-safe)"
@@ -43,12 +44,30 @@ def parse_args():
     p = argparse.ArgumentParser(
         description="Run the Pareto-HNDT/CellVG ordered-trace dispute experiment"
     )
-    p.add_argument("--demo", action="store_true", help="Use synthetic costs only for code sanity checks")
+    p.add_argument("--demo", action="store_true", help="Use the bundled LeNet synthetic costs for code sanity checks")
+    p.add_argument("--synthetic-data", action="store_true", help="Mark explicitly supplied input files as synthetic/non-manuscript data")
     p.add_argument("--trace", default=str(ROOT / "data" / "templates" / "lenet5_trace.csv"))
     p.add_argument("--interval-costs", default=None)
     p.add_argument("--query-costs", default=None)
     p.add_argument("--config", default=None)
     p.add_argument("--out", default=str(ROOT / "results" / "current"))
+    p.add_argument(
+        "--query-scale",
+        type=float,
+        default=1.0,
+        help="Multiply every measured query cost by this non-negative sensitivity factor.",
+    )
+    p.add_argument(
+        "--fault-weights",
+        choices=["uniform", "front", "back", "cost"],
+        default="uniform",
+        help="Transparent fault-position weighting used only for the mean objective/reporting.",
+    )
+    p.add_argument(
+        "--collect-pareto-stats",
+        action="store_true",
+        help="Record candidate/pruning/frontier statistics without changing solver decisions.",
+    )
     p.add_argument(
         "--fixed-g",
         default="2,4",
@@ -101,11 +120,11 @@ def _worst(paths) -> float:
     return max(p.total_cost for p in paths)
 
 
-def _mean(paths) -> float:
-    return sum(p.total_cost for p in paths) / len(paths)
+def _mean(paths, fault_weights=None) -> float:
+    return weighted_mean_cost(paths, fault_weights)
 
 
-def choose_best_fixed_g(model: CostModel):
+def choose_best_fixed_g(model: CostModel, fault_weights=None):
     """Oracle-tune one global terminal granularity on the evaluated cost table."""
 
     candidates = []
@@ -115,14 +134,14 @@ def choose_best_fixed_g(model: CostModel):
             paths = evaluate_policy(model, policy)
         except ValueError:
             continue
-        candidates.append((_worst(paths), _mean(paths), g, policy, paths))
+        candidates.append((_worst(paths), _mean(paths, fault_weights), g, policy, paths))
     if not candidates:
         raise ValueError("No feasible fixed-g policy")
     candidates.sort(key=lambda item: (item[0], item[1], item[2]))
     return candidates[0]
 
 
-def build_literature_groups(model: CostModel):
+def build_literature_groups(model: CostModel, fault_weights=None):
     """Execute paper adapters and deduplicate only the close system family.
 
     Arbitrum/opML/Agatha can collapse to the same midpoint policy on an ordered
@@ -135,7 +154,7 @@ def build_literature_groups(model: CostModel):
     status = []
     for spec in literature_baselines():
         try:
-            policy = spec.builder(model)
+            policy = spec.builder(model, fault_weights=fault_weights) if spec.key == "hu_tucker_mean" else spec.builder(model)
             executed.append((spec, policy))
             status.append({"strategy": spec.display_name, "status": "executed", "reason": ""})
         except ValueError as exc:
@@ -235,6 +254,44 @@ def build_policy_audit(model: CostModel, h) -> list[dict]:
     return rows
 
 
+def build_pareto_policy_audit(pareto) -> list[dict]:
+    """Audit selected Pareto labels and their closest lexicographic alternatives."""
+
+    selected_nodes = {}
+
+    def visit(node):
+        selected_nodes[node.interval] = node
+        if node.action.kind == "split":
+            visit(node.left)
+            visit(node.right)
+
+    visit(pareto.selected)
+    rows = []
+    for interval, chosen in sorted(selected_nodes.items()):
+        alternatives = [label for label in pareto.frontier[interval] if label is not chosen]
+        alt = min(alternatives, key=lambda x: (x.worst_cost, x.mean_cost, x.max_rounds)) if alternatives else None
+        rows.append({
+            "i": interval[0],
+            "j": interval[1],
+            "span": interval[1] - interval[0],
+            "selected_action": chosen.action.kind,
+            "selected_backend": chosen.action.backend or "",
+            "selected_split": "" if chosen.action.split is None else chosen.action.split,
+            "selected_worst": chosen.worst_cost,
+            "selected_mean": chosen.mean_cost,
+            "selected_max_rounds": chosen.max_rounds,
+            "alternative_action": "" if alt is None else alt.action.kind,
+            "alternative_backend": "" if alt is None else (alt.action.backend or ""),
+            "alternative_split": "" if alt is None or alt.action.split is None else alt.action.split,
+            "alternative_worst": "" if alt is None else alt.worst_cost,
+            "alternative_mean": "" if alt is None else alt.mean_cost,
+            "delta_worst": "" if alt is None else alt.worst_cost - chosen.worst_cost,
+            "delta_mean": "" if alt is None else alt.mean_cost - chosen.mean_cost,
+            "frontier_size": len(pareto.frontier[interval]),
+        })
+    return rows
+
+
 def main():
     args = parse_args()
     out = Path(args.out)
@@ -249,10 +306,15 @@ def main():
         interval = Path(args.interval_costs or ROOT / "data" / "templates" / "interval_costs_template.csv")
         query = Path(args.query_costs or ROOT / "data" / "templates" / "query_costs_template.csv")
         config = Path(args.config or ROOT / "config" / "experiment.json")
-        marker = "REAL/USER-SUPPLIED MEASUREMENTS"
+        marker = (
+            "SYNTHETIC DEMO - NOT FOR MANUSCRIPT"
+            if args.synthetic_data
+            else "REAL/USER-SUPPLIED MEASUREMENTS"
+        )
 
     try:
         model = build_model(args.trace, interval, query, config)
+        model = scale_query_costs(model, args.query_scale)
         missing = validate_atomic_coverage(model)
         if missing:
             raise ValueError(
@@ -269,13 +331,15 @@ def main():
         )
         raise
 
+    fault_weights = fault_weight_profile(model, args.fault_weights)
+
     # Original scalar minimax solver remains an independent regression oracle.
     h = solve_hndt(model)
 
     # Revised proposal: exact nondominated (worst, mean) frontier, followed by
     # minimax-preserving mean minimization. Uniform fault weights are used, so
     # no learned prior or tunable scalarization coefficient is introduced.
-    pareto = solve_pareto_hndt(model)
+    pareto = solve_pareto_hndt(model, fault_weights=fault_weights, collect_stats=args.collect_pareto_stats)
     if abs(pareto.worst_optimum - h.optimum) > 1e-9:
         raise AssertionError(
             "Pareto-HNDT must recover the scalar HNDT minimax optimum; "
@@ -293,7 +357,7 @@ def main():
         MEAN_FIRST_NAME: "proposal ablation",
     }
 
-    literature_executed, literature_groups, literature_status = build_literature_groups(model)
+    literature_executed, literature_groups, literature_status = build_literature_groups(model, fault_weights=fault_weights)
     for group in literature_groups:
         policies[group["name"]] = group["policy"]
         categories[group["name"]] = "paper-supported baseline"
@@ -307,7 +371,7 @@ def main():
     categories[midpoint_stop_name] = "mechanism ablation"
 
     # Strongest globally fixed granularity under oracle access to this table.
-    best_g_cost, best_g_mean, best_g, best_g_policy, _ = choose_best_fixed_g(model)
+    best_g_cost, best_g_mean, best_g, best_g_policy, _ = choose_best_fixed_g(model, fault_weights=fault_weights)
     best_g_name = f"Ablation: oracle best fixed-g (g={best_g})"
     policies[best_g_name] = best_g_policy
     categories[best_g_name] = "oracle internal ablation"
@@ -349,23 +413,28 @@ def main():
     # tie-selected HNDT policy at the same minimax value.
     proposal_worst = _worst(paths[PROPOSAL_NAME])
     scalar_worst = _worst(paths[SCALAR_HNDT_NAME])
-    proposal_mean = _mean(paths[PROPOSAL_NAME])
-    scalar_mean = _mean(paths[SCALAR_HNDT_NAME])
+    proposal_mean = _mean(paths[PROPOSAL_NAME], fault_weights)
+    scalar_mean = _mean(paths[SCALAR_HNDT_NAME], fault_weights)
     if abs(proposal_worst - scalar_worst) > 1e-9:
         raise AssertionError("Pareto-HNDT changed the exact minimax optimum")
     if proposal_mean > scalar_mean + 1e-9:
         raise AssertionError("Pareto-HNDT must not worsen mean cost among minimax-optimal policies")
+    if abs(proposal_mean - pareto.mean_at_worst_optimum) > 1e-8:
+        raise AssertionError(
+            "evaluated weighted mean must match Pareto objective: "
+            f"{proposal_mean} vs {pareto.mean_at_worst_optimum}"
+        )
 
     summaries = []
     for name, path_list in paths.items():
-        row = summarize(name, path_list, pareto.worst_optimum)
+        row = summarize(name, path_list, pareto.worst_optimum, fault_weights=fault_weights)
         row["category"] = categories[name]
         row["first_split"] = first_split(policies[name], model.n)
         row["mean_delta_vs_proposal"] = row["mean_cost"] - proposal_mean
         row["worst_delta_vs_proposal"] = row["worst_case_cost"] - proposal_worst
         summaries.append(row)
     write_csv(out / "summary.csv", summaries)
-    write_fault_paths(out / "fault_costs.csv", paths)
+    write_fault_paths(out / "fault_costs.csv", paths, fault_weights=fault_weights)
     write_policy_json(out / "pareto_hndt_policy.json", pareto.policy)
     write_policy_json(out / "hndt_scalar_policy.json", h.action)
     write_policy_json(out / "pareto_mean_first_policy.json", policies[MEAN_FIRST_NAME])
@@ -376,7 +445,7 @@ def main():
     literature_individual_rows = []
     for spec, policy in literature_executed:
         path_list = evaluate_policy(model, policy)
-        row = summarize(spec.display_name, path_list, pareto.worst_optimum)
+        row = summarize(spec.display_name, path_list, pareto.worst_optimum, fault_weights=fault_weights)
         row["category"] = f"paper-supported {spec.baseline_class} adaptation"
         row["first_split"] = first_split(policy, model.n)
         row["policy_signature"] = repr(policy_signature(policy))
@@ -422,6 +491,7 @@ def main():
 
     # The old scalar audit remains useful as a sensitivity diagnostic.
     write_csv(out / "hndt_scalar_policy_audit.csv", build_policy_audit(model, h))
+    write_csv(out / "pareto_policy_audit.csv", build_pareto_policy_audit(pareto))
 
     # Proposal-component ablation: split adaptivity, stopping adaptivity, and
     # minimax-safe secondary mean optimization are separated explicitly.
@@ -454,9 +524,9 @@ def main():
                 "adaptive_stop": adaptive_stop,
                 "minimax_safe_mean_refinement": secondary_mean,
                 "worst_case_cost": _worst(path_list),
-                "mean_cost": _mean(path_list),
+                "mean_cost": _mean(path_list, fault_weights),
                 "worst_delta_vs_proposal": _worst(path_list) - proposal_worst,
-                "mean_delta_vs_proposal": _mean(path_list) - proposal_mean,
+                "mean_delta_vs_proposal": _mean(path_list, fault_weights) - proposal_mean,
                 "ratio_to_proposal_worst": _worst(path_list) / proposal_worst,
                 "max_rounds": max(p.rounds for p in path_list),
                 "first_split": first_split(policies[name], model.n),
@@ -500,7 +570,7 @@ def main():
     # Heterogeneity ablation now reports both Pareto objectives.
     hom = homogenized_model(model)
     hh = solve_hndt(hom)
-    ph = solve_pareto_hndt(hom)
+    ph = solve_pareto_hndt(hom, fault_weights=fault_weights)
     hom_paths = evaluate_policy(hom, ph.policy)
     ablation = [
         {
@@ -514,7 +584,7 @@ def main():
         {
             "cost_model": "homogenized",
             "optimal_worst_case_cost": ph.worst_optimum,
-            "mean_cost_at_minimax": _mean(hom_paths),
+            "mean_cost_at_minimax": _mean(hom_paths, fault_weights),
             "first_action": first_split(ph.policy, model.n),
             "max_rounds": max(p.rounds for p in hom_paths),
             "root_frontier_size": len(ph.root_frontier),
@@ -550,6 +620,9 @@ def main():
         "query_costs": str(query),
         "config": str(config),
         "n": model.n,
+        "query_scale": args.query_scale,
+        "fault_weight_profile": args.fault_weights,
+        "fault_weights": list(fault_weights),
         "proposal": PROPOSAL_NAME,
         "pareto_hndt_worst_optimum": pareto.worst_optimum,
         "pareto_hndt_mean_at_optimum": pareto.mean_at_worst_optimum,
@@ -570,8 +643,22 @@ def main():
             if row["status"] != "executed"
         ],
         "round_budget": args.round_budget,
+        "pareto_stats": (
+            None
+            if pareto.stats is None
+            else {
+                "intervals": pareto.stats.intervals,
+                "candidates_generated": pareto.stats.candidates_generated,
+                "labels_retained": pareto.stats.labels_retained,
+                "duplicate_pruned": pareto.stats.duplicate_pruned,
+                "dominated_pruned": pareto.stats.dominated_pruned,
+                "peak_frontier_size": pareto.stats.peak_frontier_size,
+                "peak_candidates_per_interval": pareto.stats.peak_candidates_per_interval,
+                "pruning_ratio": pareto.stats.pruning_ratio,
+            }
+        ),
         "method_note": (
-            "Pareto-HNDT computes the exact nondominated frontier of worst-case and uniform-mean "
+            "Pareto-HNDT computes the exact nondominated frontier of worst-case and weighted-mean "
             "fault-path cost, then preserves the exact scalar HNDT minimax optimum while minimizing "
             "mean cost among all minimax-optimal policies. No scalarization hyperparameter is used."
         ),

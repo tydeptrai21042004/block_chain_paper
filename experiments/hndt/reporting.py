@@ -30,8 +30,14 @@ def write_csv(path: Path, rows: Sequence[Mapping], fieldnames=None) -> None:
 def write_fault_paths(
     path: Path,
     strategy_to_paths: Mapping[str, Iterable[PathResult]],
+    fault_weights: Sequence[float] | None = None,
 ) -> None:
     rows = []
+    normalized = None
+    if fault_weights is not None:
+        values = [float(x) for x in fault_weights]
+        total = sum(values)
+        normalized = [x / total for x in values]
     for strategy, paths in strategy_to_paths.items():
         for p in paths:
             rows.append(
@@ -39,6 +45,7 @@ def write_fault_paths(
                     "strategy": strategy,
                     "fault_index": p.fault_index,
                     "fault_position": p.fault_index + 1,
+                    "fault_weight": "" if normalized is None else normalized[p.fault_index],
                     "total_cost": p.total_cost,
                     "rounds": p.rounds,
                     "terminal_i": p.terminal_i,
