@@ -2,7 +2,10 @@
 #![no_main]
 
 mod merkle_vectors;
+#[cfg(not(any(trace_conv_heavy, trace_gemm_heavy)))]
 mod lenet_vectors;
+#[cfg(any(trace_conv_heavy, trace_gemm_heavy))]
+mod extra_trace_vectors;
 
 use ckb_hash::blake2b_256;
 use ckb_std::{default_alloc, entry};
@@ -11,15 +14,32 @@ use merkle_vectors::{
     CANONICAL_DEPTH, CANONICAL_LEAF_COUNT, CANONICAL_LEAVES, CANONICAL_PROOFS,
     CANONICAL_ROOT, GENERIC_SIBLINGS,
 };
+#[cfg(not(any(trace_conv_heavy, trace_gemm_heavy)))]
 use lenet_vectors::{
     checkpoint_matches, load_checkpoint, CONV1_B, CONV1_W, CONV2_B, CONV2_W,
-    FC1_B, FC1_W, FC2_B, FC2_W, FC3_B, FC3_W, LENET_MAX_STATE, LENET_STATE_LENS,
+    FC1_B, FC1_W, FC2_B, FC2_W, FC3_B, FC3_W, LENET_STATE_LENS,
+};
+#[cfg(trace_conv_heavy)]
+use extra_trace_vectors::{
+    conv_heavy_checkpoint_matches, load_conv_heavy_checkpoint,
+    CONV_HEAVY_C1_B, CONV_HEAVY_C1_W, CONV_HEAVY_C2_B, CONV_HEAVY_C2_W,
+    CONV_HEAVY_C3_B, CONV_HEAVY_C3_W, CONV_HEAVY_F1_B, CONV_HEAVY_F1_W,
+    CONV_HEAVY_F2_B, CONV_HEAVY_F2_W, CONV_HEAVY_STATE_LENS,
+};
+#[cfg(trace_gemm_heavy)]
+use extra_trace_vectors::{
+    gemm_heavy_checkpoint_matches, load_gemm_heavy_checkpoint,
+    GEMM_HEAVY_F1_B, GEMM_HEAVY_F1_W, GEMM_HEAVY_F2_B, GEMM_HEAVY_F2_W,
+    GEMM_HEAVY_F3_B, GEMM_HEAVY_F3_W, GEMM_HEAVY_F4_B, GEMM_HEAVY_F4_W,
+    GEMM_HEAVY_F5_B, GEMM_HEAVY_F5_W, GEMM_HEAVY_F6_B, GEMM_HEAVY_F6_W,
+    GEMM_HEAVY_F7_B, GEMM_HEAVY_F7_W, GEMM_HEAVY_STATE_LENS,
 };
 
 entry!(program_entry);
 default_alloc!();
 
 static mut SINK: i64 = 0;
+const TRACE_MAX_STATE: usize = 4704;
 
 fn parse_usize(s: &str, default_value: usize) -> usize {
     let mut value = 0usize;
@@ -337,6 +357,7 @@ fn qfc(
     outputs
 }
 
+#[cfg(not(any(trace_conv_heavy, trace_gemm_heavy)))]
 #[inline(never)]
 fn apply_lenet_op(op: usize, input: &[i32], output: &mut [i32]) -> usize {
     match op {
@@ -356,6 +377,46 @@ fn apply_lenet_op(op: usize, input: &[i32], output: &mut [i32]) -> usize {
     }
 }
 
+#[cfg(trace_conv_heavy)]
+#[inline(never)]
+fn apply_conv_heavy_op(op: usize, input: &[i32], output: &mut [i32]) -> usize {
+    match op {
+        1 => qconv2d(input, 1, 32, 32, 4, 3, &CONV_HEAVY_C1_W, &CONV_HEAVY_C1_B, 2, output),
+        2 => qrelu(input, output),
+        3 => qconv2d(input, 4, 30, 30, 4, 3, &CONV_HEAVY_C2_W, &CONV_HEAVY_C2_B, 4, output),
+        4 => qrelu(input, output),
+        5 => qmaxpool2x2(input, 4, 28, 28, output),
+        6 => qconv2d(input, 4, 14, 14, 8, 3, &CONV_HEAVY_C3_W, &CONV_HEAVY_C3_B, 4, output),
+        7 => qrelu(input, output),
+        8 => qmaxpool2x2(input, 8, 12, 12, output),
+        9 => qcopy(input, output),
+        10 => qfc(input, 64, &CONV_HEAVY_F1_W, &CONV_HEAVY_F1_B, 6, output),
+        11 => qrelu(input, output),
+        12 => qfc(input, 10, &CONV_HEAVY_F2_W, &CONV_HEAVY_F2_B, 5, output),
+        _ => 0,
+    }
+}
+
+#[cfg(trace_gemm_heavy)]
+#[inline(never)]
+fn apply_gemm_heavy_op(op: usize, input: &[i32], output: &mut [i32]) -> usize {
+    match op {
+        1 => qfc(input, 160, &GEMM_HEAVY_F1_W, &GEMM_HEAVY_F1_B, 6, output),
+        2 => qrelu(input, output),
+        3 => qfc(input, 128, &GEMM_HEAVY_F2_W, &GEMM_HEAVY_F2_B, 6, output),
+        4 => qrelu(input, output),
+        5 => qfc(input, 96, &GEMM_HEAVY_F3_W, &GEMM_HEAVY_F3_B, 6, output),
+        6 => qrelu(input, output),
+        7 => qfc(input, 64, &GEMM_HEAVY_F4_W, &GEMM_HEAVY_F4_B, 6, output),
+        8 => qrelu(input, output),
+        9 => qfc(input, 48, &GEMM_HEAVY_F5_W, &GEMM_HEAVY_F5_B, 6, output),
+        10 => qrelu(input, output),
+        11 => qfc(input, 32, &GEMM_HEAVY_F6_W, &GEMM_HEAVY_F6_B, 6, output),
+        12 => qfc(input, 10, &GEMM_HEAVY_F7_W, &GEMM_HEAVY_F7_B, 6, output),
+        _ => 0,
+    }
+}
+
 #[inline(never)]
 fn checksum_state(data: &[i32]) -> i64 {
     let mut checksum = 0i64;
@@ -367,6 +428,7 @@ fn checksum_state(data: &[i32]) -> i64 {
     checksum
 }
 
+#[cfg(not(any(trace_conv_heavy, trace_gemm_heavy)))]
 #[inline(never)]
 fn bench_lenet_block(start: usize, end: usize) -> i64 {
     // A genuine state-chained interval verifier.  It loads the exact committed
@@ -381,8 +443,8 @@ fn bench_lenet_block(start: usize, end: usize) -> i64 {
         return i64::MIN;
     }
 
-    let mut a = [0i32; LENET_MAX_STATE];
-    let mut b = [0i32; LENET_MAX_STATE];
+    let mut a = [0i32; TRACE_MAX_STATE];
+    let mut b = [0i32; TRACE_MAX_STATE];
     let mut len = load_checkpoint(start, &mut a);
     if len != LENET_STATE_LENS[start] {
         return i64::MIN;
@@ -411,6 +473,87 @@ fn bench_lenet_block(start: usize, end: usize) -> i64 {
     checksum_state(final_state)
 }
 
+#[cfg(any(trace_conv_heavy, trace_gemm_heavy))]
+#[inline(never)]
+fn bench_lenet_block(_start: usize, _end: usize) -> i64 {
+    i64::MIN
+}
+
+#[cfg(trace_conv_heavy)]
+#[inline(never)]
+fn bench_trace_block(start: usize, end: usize) -> i64 {
+    if start >= end || end > 12 {
+        return i64::MIN;
+    }
+    let mut a = [0i32; TRACE_MAX_STATE];
+    let mut b = [0i32; TRACE_MAX_STATE];
+    let mut len = load_conv_heavy_checkpoint(start, &mut a);
+    if len != CONV_HEAVY_STATE_LENS[start] {
+        return i64::MIN;
+    }
+    let mut current_in_a = true;
+    let mut op = start + 1;
+    while op <= end {
+        let next_len = if current_in_a {
+            apply_conv_heavy_op(op, &a[..len], &mut b)
+        } else {
+            apply_conv_heavy_op(op, &b[..len], &mut a)
+        };
+        if next_len == 0 || next_len != CONV_HEAVY_STATE_LENS[op] {
+            return i64::MIN;
+        }
+        len = next_len;
+        current_in_a = !current_in_a;
+        op += 1;
+    }
+    let final_state = if current_in_a { &a[..len] } else { &b[..len] };
+    if !conv_heavy_checkpoint_matches(end, final_state, len) {
+        return i64::MIN;
+    }
+    checksum_state(final_state)
+}
+
+#[cfg(trace_gemm_heavy)]
+#[inline(never)]
+fn bench_trace_block(start: usize, end: usize) -> i64 {
+    if start >= end || end > 12 {
+        return i64::MIN;
+    }
+    let mut a = [0i32; TRACE_MAX_STATE];
+    let mut b = [0i32; TRACE_MAX_STATE];
+    let mut len = load_gemm_heavy_checkpoint(start, &mut a);
+    if len != GEMM_HEAVY_STATE_LENS[start] {
+        return i64::MIN;
+    }
+    let mut current_in_a = true;
+    let mut op = start + 1;
+    while op <= end {
+        let next_len = if current_in_a {
+            apply_gemm_heavy_op(op, &a[..len], &mut b)
+        } else {
+            apply_gemm_heavy_op(op, &b[..len], &mut a)
+        };
+        if next_len == 0 || next_len != GEMM_HEAVY_STATE_LENS[op] {
+            return i64::MIN;
+        }
+        len = next_len;
+        current_in_a = !current_in_a;
+        op += 1;
+    }
+    let final_state = if current_in_a { &a[..len] } else { &b[..len] };
+    if !gemm_heavy_checkpoint_matches(end, final_state, len) {
+        return i64::MIN;
+    }
+    checksum_state(final_state)
+}
+
+#[cfg(not(any(trace_conv_heavy, trace_gemm_heavy)))]
+#[inline(never)]
+fn bench_trace_block(_start: usize, _end: usize) -> i64 {
+    i64::MIN
+}
+
+
 fn program_entry() -> i8 {
     let kind = option_env!("BENCH_KIND").unwrap_or("relu");
     let size = parse_usize(option_env!("BENCH_SIZE").unwrap_or("64"), 64);
@@ -426,6 +569,7 @@ fn program_entry() -> i8 {
         "merkle" => bench_merkle(size, leaf_index),
         "merkle_access" => bench_merkle_access(size, leaf_index),
         "lenet" => bench_lenet_block(start, end),
+        "trace" => bench_trace_block(start, end),
         _ => return 2,
     };
 

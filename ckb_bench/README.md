@@ -180,3 +180,45 @@ Unmeasured intervals remain unavailable; no interpolation is performed.
 - keep Merkle, witness/transaction, and interval-compute semantics explicit;
 - only claim full-system baselines when the full external system is actually
   reproduced.
+
+## V5 multi-trace extension
+
+V5 keeps the original `lenet` mode unchanged and adds a generic `trace` mode
+selected at compile time by `BENCH_TRACE`. `build.rs` watches `BENCH_TRACE`, so
+Cargo cannot silently reuse a binary compiled for another trace.
+
+Generate/check the additional deterministic traces:
+
+```bash
+python generate_trace_vectors.py
+python generate_trace_vectors.py --check
+```
+
+The added traces are:
+
+- `conv_heavy` — three convolution stages at different positions, followed by
+  small dense layers;
+- `gemm_heavy` — seven fully-connected/GEMM stages with interleaved ReLUs.
+
+Both remain sequential 12-transition traces, preserving the same 13-checkpoint
+Merkle geometry as LeNet.
+
+Measure any built-in trace with:
+
+```bash
+bash run_trace_intervals.sh lenet
+bash run_trace_intervals.sh conv_heavy
+bash run_trace_intervals.sh gemm_heavy
+```
+
+Each command produces 42 span-1..4 interval logs and one parsed measurement CSV.
+The generic parser is `parse_trace_logs.py`; `parse_lenet_logs.py` remains as a
+backward-compatible wrapper.
+
+### Trace-binary isolation
+
+`BENCH_TRACE` is converted by `build.rs` into compile-time Rust `cfg` flags.
+Only the selected extra trace vector module is linked into an extra-trace
+binary, while the original LeNet build excludes the extra vector module. This
+prevents large unused trace tables from silently changing the binary footprint
+of the reference LeNet measurement.
