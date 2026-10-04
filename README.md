@@ -14,6 +14,25 @@ adapters, tests, experiment pipeline, and manuscript-integration notes.
 - [Test report](TEST_REPORT.md)
 - [Bundled manuscript](paper/README.md)
 
+
+## V5 code/result revision
+
+The V5 revision does **not** change the Pareto-HNDT objective or Bellman recurrence.
+It expands the evidence pipeline with:
+
+- two additional deterministic 12-transition traces (`conv_heavy`, `gemm_heavy`);
+- a generic CKB interval benchmark/parser (`run_trace_intervals.sh`);
+- multi-trace campaigns (`run_campaign.py`);
+- fixed-grid query-cost and fault-weight sensitivity (`run_sensitivity.py`);
+- bounded measurement-noise stability analysis (`run_robustness.py`);
+- optional Pareto candidate/frontier/pruning instrumentation;
+- synthetic solver-scalability experiments (`run_scalability.py`);
+- a one-command orchestrator (`run_v5_suite.py`);
+- a Pareto policy audit showing local alternatives and objective deltas.
+
+Synthetic V5 outputs are explicitly marked **NOT FOR MANUSCRIPT**. Real mode
+never substitutes demo costs for missing measurements.
+
 ## Quick validation
 
 ```bash
@@ -28,7 +47,7 @@ The current suite validates:
 - mechanism-isolation ablations;
 - literature-adapter provenance/fidelity guards;
 - corrected 13-state Merkle proofs;
-- generated **state-chained** LeNet checkpoints and all 42 span-1..4 intervals;
+- generated **state-chained** LeNet, convolution-heavy, and GEMM-heavy checkpoints (42 span-1..4 intervals per trace);
 - parsers, CSV/model validation, backend completeness, and local documentation
   links;
 - a synthetic end-to-end experiment.
@@ -47,12 +66,15 @@ Demo data are synthetic and must never be copied into the manuscript.
 ```bash
 cd ckb_bench
 bash run_benchmarks.sh
-bash run_lenet_intervals.sh
+bash run_trace_intervals.sh lenet
+bash run_trace_intervals.sh conv_heavy
+bash run_trace_intervals.sh gemm_heavy
 cd ..
 
 python experiments/fill_query_template_from_ckb.py
-python experiments/fill_interval_template_from_ckb.py
-bash run_small_experiment.sh real
+python experiments/run_v5_suite.py --mode real \
+  --campaign experiments/config/campaign_real.example.json \
+  --out experiments/results/v5_real_suite
 ```
 
 The main run reports:

@@ -1,9 +1,9 @@
-# Reproducible CellVG/HNDT experiment
+# Reproducible CellVG / Pareto-HNDT V5 experiment
 
-This revision evaluates one narrow claim well: given a committed ordered neural
-trace and measured verification/query costs, does exact cost-aware stop-or-split
-optimization improve the worst dispute path relative to structurally restricted
-localization policies?
+V5 keeps the Pareto-HNDT Bellman recurrence unchanged and strengthens the
+**evidence** around it.  The primary scientific question is now tested across
+multiple ordered traces, query-cost regimes, fault-weight profiles, bounded
+measurement noise, and solver sizes.
 
 ## 1. Validate the artifact
 
@@ -12,22 +12,23 @@ python -m pip install -r experiments/requirements.txt
 bash run_tests.sh
 ```
 
-The test suite checks generated Merkle vectors, generated state-chained LeNet
-checkpoints, Bellman optimality, round budgets, restricted policies, parsers,
-and the synthetic integration run.
+The suite checks the original LeNet trace plus the new convolution-heavy and
+GEMM-heavy state-chained traces.  All three contain 12 transitions / 13
+checkpoints, so the same depth-4 Merkle configuration is comparable across
+traces.
 
-For a software-only smoke test:
+## 2. Fast software-only V5 smoke test
 
 ```bash
-bash run_small_experiment.sh demo
+python experiments/run_v5_suite.py \
+  --mode demo \
+  --out experiments/results/v5_suite_demo
 ```
 
-Everything under `experiments/data/demo/` is synthetic and is never manuscript
-evidence.
+Everything used by demo mode is synthetic and is marked **NOT FOR MANUSCRIPT**.
+It validates orchestration only.
 
-## 2. Measure corrected Merkle query cost
-
-Read [ckb_bench/README.md](ckb_bench/README.md), then:
+## 3. Measure the common Merkle query cost
 
 ```bash
 cd ckb_bench
@@ -37,95 +38,166 @@ cd ..
 python experiments/fill_query_template_from_ckb.py
 ```
 
-The depth-4 publication configuration corresponds to 13 committed states padded
-to 16 leaves. Verification uses supplied sibling digests, actual leaf-index
-ordering, one parent hash per level, and a known root.
+The publication configuration commits 13 states, padded to 16 leaves, so the
+canonical authentication depth is four.
 
-## 3. Measure state-chained neural intervals
+## 4. Measure three real state-chained traces
 
 ```bash
 cd ckb_bench
 python generate_lenet_vectors.py --check
-bash run_lenet_intervals.sh
+python generate_trace_vectors.py --check
+
+bash run_trace_intervals.sh lenet
+bash run_trace_intervals.sh conv_heavy
+bash run_trace_intervals.sh gemm_heavy
 cd ..
-python experiments/fill_interval_template_from_ckb.py
 ```
 
-The 42 runs cover all consecutive spans 1--4. Each interval `[i,j]` loads the
-exact generated checkpoint `S_i`, re-executes the true sequence
-`f_{i+1},...,f_j`, and requires exact equality with `S_j`.
+Each command measures every consecutive interval of spans 1--4, i.e. 42
+intervals per trace.  Raw `ckb-debugger` logs are retained under
+`ckb_bench/logs_<trace>/` and parsed into:
 
-The deterministic weights are synthetic/untrained. They exist only to make the
-verification trace reproducible; accuracy is not an outcome.
+- `ckb_bench/lenet_interval_measurements.csv`;
+- `ckb_bench/conv_heavy_interval_measurements.csv`;
+- `ckb_bench/gemm_heavy_interval_measurements.csv`.
 
-## 4. Run the real policy experiment
+No longer interval is interpolated.
+
+## 5. Run the real multi-trace campaign
+
+After filling the measured query table, run:
 
 ```bash
-bash run_small_experiment.sh real
+python experiments/run_campaign.py \
+  --campaign experiments/config/campaign_real.example.json \
+  --out experiments/results/v5_real_campaign
 ```
 
-The real run fails on missing measurements instead of interpolating or
-fabricating values.
+Or run the complete V5 suite:
 
-### Main comparison
+```bash
+python experiments/run_v5_suite.py \
+  --mode real \
+  --campaign experiments/config/campaign_real.example.json \
+  --out experiments/results/v5_real_suite
+```
 
-The main table contains:
+Real mode rejects campaign entries marked synthetic. Missing measurements cause
+an explicit failure instead of a fallback to demo values.
 
-1. HNDT;
-2. one deduplicated prior-work midpoint/pinpoint family;
-3. adaptive split + forced atomic stop;
-4. midpoint split + adaptive stop;
-5. oracle best fixed-`g`;
-6. requested fixed-`g` ablations;
-7. optional strategies only when their required measurements exist.
+## 6. Query-cost sensitivity
 
-See [BASELINES.md](BASELINES.md) for the exact prior-work adaptation boundary.
+The experiment runner accepts a multiplicative query-cost scale without
+changing any terminal cost or solver rule:
 
-## 5. Output files
+```bash
+python experiments/run_experiment.py ... --query-scale 0.5
+python experiments/run_experiment.py ... --query-scale 1
+python experiments/run_experiment.py ... --query-scale 2
+```
 
-A completed run writes:
+The predefined sensitivity runner uses the fixed grid
+`0.25, 0.5, 1, 2, 4`:
 
-- `summary.csv` — main deduplicated comparison;
-- `fault_costs.csv` — complete fault-position sweep;
-- `literature_baselines.csv` — citation, fidelity, exclusions, status;
-- `literature_individual_summary.csv` — individual adapted-paper rows even if
-  they collapse numerically;
-- `literature_policy_groups.csv` — equivalence-group audit;
-- `proposal_ablation.csv` — adaptive split / adaptive stop / minimax-safe mean-refinement isolation;
-- `pareto_frontier.csv` — exact worst-case/mean cost frontier;
-- `proposal_gain.csv` — Pareto-HNDT versus scalar HNDT;
-- `round_budget_frontier.csv` — exact cost vs hard interaction-round budget;
-- `hndt_scalar_policy_audit.csv` — scalar-HNDT chosen action, best alternative, and action margin;
-- `heterogeneity_ablation.csv`;
-- `optional_policy_status.csv` — skipped/available ZK and full-native extremes;
-- `policies/*.json`;
-- `run_metadata.json`.
+```bash
+python experiments/run_sensitivity.py \
+  --trace <trace.csv> \
+  --interval-costs <measured.csv> \
+  --query-costs experiments/data/templates/query_costs_template.csv \
+  --config experiments/config/experiment.json \
+  --out experiments/results/sensitivity
+```
 
-## 6. Exact round-constrained HNDT
+No query scale is selected from the observed gain.
 
-The original HNDT objective is unchanged. For deployments with a hard
-interaction limit, the artifact also solves
+## 7. Fault-weight sensitivity
+
+The primary result remains **uniform** fault weights.  Three transparent
+counterfactual profiles are available:
 
 ```text
-F_0(i,j) = A(i,j)
-F_r(i,j) = min(
-    A(i,j),
-    min_k q(i,j,k) + max(F_{r-1}(i,k), F_{r-1}(k,j))
-)
+uniform : p_t = 1/n
+front   : p_t proportional to n-t
+back    : p_t proportional to t+1
+cost    : p_t proportional to measured atomic terminal cost
 ```
 
-This is an exact restriction of the admissible strategy set, not a latency
-heuristic. `round_budget_frontier.csv` evaluates successive budgets until the
-unconstrained optimum is recovered.
-
-To explicitly add one constrained policy to `summary.csv`:
+Example:
 
 ```bash
-python experiments/run_experiment.py --demo --round-budget 3
+python experiments/run_experiment.py ... --fault-weights front
 ```
 
-## 7. Manuscript rule
+The same weights are passed to Pareto-HNDT, weighted reporting, and the
+Hu--Tucker objective adaptation.
 
-The manuscript is in [paper/](paper/README.md). Replace `\resultblank`
-placeholders only after a verified **real** run and inspection of the raw
-`ckb-debugger` logs.
+## 8. Measurement-noise robustness
+
+```bash
+python experiments/run_robustness.py \
+  --trace <trace.csv> \
+  --interval-costs <measured.csv> \
+  --query-costs experiments/data/templates/query_costs_template.csv \
+  --config experiments/config/experiment.json \
+  --noise-levels 0.01,0.025,0.05 \
+  --trials 100 \
+  --out experiments/results/robustness
+```
+
+This never overwrites measured data.  Each trial constructs a perturbed in-memory
+cost model and checks that Pareto-HNDT still exactly recovers the scalar minimax
+projection.
+
+## 9. Solver scalability / frontier instrumentation
+
+```bash
+python experiments/run_scalability.py \
+  --sizes 12,24,48 \
+  --families homogeneous,mild,strong \
+  --out experiments/results/scalability/scalability.csv
+```
+
+The default is deliberately modest because the exact Pareto solver is
+output-sensitive. Larger sizes can be requested explicitly, e.g.
+`--sizes 12,24,48,96,192`. The scalability costs are synthetic and are used
+**only** for runtime/frontier analysis, never for CKB performance claims.
+
+Recorded diagnostics include:
+
+- scalar and Pareto wall-clock solver time;
+- Python peak memory during Pareto solving;
+- root and peak frontier size;
+- generated/retained label counts;
+- duplicate and dominated-label pruning;
+- pruning ratio.
+
+Instrumentation is optional and does not enter the optimization objective.
+
+## 10. Per-run outputs
+
+A completed `run_experiment.py` execution writes:
+
+- `summary.csv`;
+- `fault_costs.csv` including the applied fault weight;
+- `pareto_frontier.csv`;
+- `proposal_gain.csv`;
+- `proposal_ablation.csv` / `mechanism_ablation.csv`;
+- `round_budget_frontier.csv`;
+- `heterogeneity_ablation.csv`;
+- `hndt_scalar_policy_audit.csv`;
+- `pareto_policy_audit.csv`;
+- literature baseline provenance/grouping tables;
+- `policies/*.json`;
+- `run_metadata.json`, including query scale, fault weights, and optional Pareto
+  pruning statistics.
+
+## 11. Scientific guardrails
+
+- Do not change the Bellman recurrence to increase a reported gain.
+- Do not select traces, query scales, or fault profiles after looking at the
+  answer and report only favorable cases.
+- Do not fabricate unavailable zkVM costs.
+- Do not interpolate unmeasured native intervals.
+- Keep synthetic scalability/demo results separate from real CKB evidence.
+- Preserve raw `ckb-debugger` logs and exact tool versions for every real run.
