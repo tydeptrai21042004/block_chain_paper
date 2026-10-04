@@ -5,7 +5,7 @@ mod merkle_vectors;
 mod lenet_vectors;
 
 use ckb_hash::blake2b_256;
-use ckb_std::entry;
+use ckb_std::{default_alloc, entry};
 use core::ptr::{addr_of_mut, write_volatile};
 use merkle_vectors::{
     CANONICAL_DEPTH, CANONICAL_LEAF_COUNT, CANONICAL_LEAVES, CANONICAL_PROOFS,
@@ -17,6 +17,7 @@ use lenet_vectors::{
 };
 
 entry!(program_entry);
+default_alloc!();
 
 static mut SINK: i64 = 0;
 
@@ -241,7 +242,7 @@ fn qconv2d(
                     for ky in 0..kernel {
                         for kx in 0..kernel {
                             let src = ic * h * w + (y + ky) * w + (x + kx);
-                            let wi = (((oc * cin + ic) * kernel + ky) * kernel + kx);
+                            let wi = ((oc * cin + ic) * kernel + ky) * kernel + kx;
                             acc += (input[src] as i64) * (weights[wi] as i64);
                         }
                     }
