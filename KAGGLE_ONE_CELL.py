@@ -1,4 +1,4 @@
-# CellVG / HNDT — corrected one-cell Kaggle reproduction
+# CellVG / Pareto-HNDT — corrected one-cell Kaggle reproduction
 # CPU only; real CKB-VM cycle measurements; no --demo for paper results.
 
 import json
@@ -179,6 +179,7 @@ patch_repo_if_needed(ROOT)
 required = [
     "experiments/run_experiment.py",
     "experiments/hndt/core.py",
+    "experiments/hndt/pareto.py",
     "experiments/hndt/baselines.py",
     "experiments/hndt/literature_baselines.py",
     "experiments/fill_query_template_from_ckb.py",
@@ -256,7 +257,7 @@ if interval_df["native_cycles"].isna().any() or (interval_df["native_cycles"] <=
 print("✅ All 42 real state-chained intervals measured.")
 run(f"{sys.executable} experiments/fill_interval_template_from_ckb.py", cwd=ROOT)
 
-print("\n### 9. Final HNDT + baselines + ablations")
+print("\n### 9. Final Pareto-HNDT + baselines + ablations")
 if RESULT_DIR.exists():
     shutil.rmtree(RESULT_DIR)
 if FIGURE_DIR.exists():
@@ -283,17 +284,19 @@ summary_file = RESULT_DIR / "summary.csv"
 if not summary_file.exists():
     raise RuntimeError("summary.csv was not generated.")
 summary = pd.read_csv(summary_file)
-print("\nFINAL PAPER RESULT — HNDT + BASELINES")
+print("\nFINAL PAPER RESULT — PARETO-HNDT + BASELINES")
 display(summary.sort_values("worst_case_cost").reset_index(drop=True))
 
 for filename, title in [
-    ("mechanism_ablation.csv", "ADAPTIVE SPLIT / ADAPTIVE STOP ABLATION"),
+    ("proposal_ablation.csv", "PROPOSAL COMPONENT ABLATION"),
+    ("proposal_gain.csv", "PARETO-HNDT VS SCALAR HNDT"),
+    ("pareto_frontier.csv", "EXACT WORST/MEAN PARETO FRONTIER"),
     ("literature_individual_summary.csv", "PAPER-SUPPORTED BASELINE ADAPTATIONS"),
     ("literature_policy_groups.csv", "PRIOR-WORK POLICY EQUIVALENCE"),
     ("fault_costs.csv", "FAULT AT ALL 12 OPERATOR POSITIONS"),
     ("heterogeneity_ablation.csv", "HETEROGENEITY ABLATION"),
     ("round_budget_frontier.csv", "HNDT ROUND-BUDGET FRONTIER"),
-    ("hndt_policy_audit.csv", "HNDT POLICY AUDIT"),
+    ("hndt_scalar_policy_audit.csv", "SCALAR HNDT POLICY AUDIT"),
     ("optional_policy_status.csv", "OPTIONAL BACKEND STATUS"),
 ]:
     path = RESULT_DIR / filename
@@ -301,14 +304,19 @@ for filename, title in [
         print("\n" + title)
         display(pd.read_csv(path))
 
-hndt = summary[summary["strategy"] == "HNDT"]
-if len(hndt) != 1:
-    raise RuntimeError("Expected exactly one HNDT summary row.")
-if "ratio_to_optimum" in hndt.columns:
-    ratio = float(hndt.iloc[0]["ratio_to_optimum"])
+proposal = summary[summary["strategy"] == "Pareto-HNDT (minimax-safe)"]
+scalar = summary[summary["strategy"] == "Ablation: scalar HNDT (minimax only)"]
+if len(proposal) != 1 or len(scalar) != 1:
+    raise RuntimeError("Expected exactly one Pareto-HNDT row and one scalar-HNDT ablation row.")
+if "ratio_to_optimum" in proposal.columns:
+    ratio = float(proposal.iloc[0]["ratio_to_optimum"])
     if abs(ratio - 1.0) > 1e-9:
-        raise RuntimeError(f"HNDT exact-optimum sanity check failed: ratio={ratio}")
-print("✅ HNDT final-result sanity check passed.")
+        raise RuntimeError(f"Pareto-HNDT minimax sanity check failed: ratio={ratio}")
+if abs(float(proposal.iloc[0]["worst_case_cost"]) - float(scalar.iloc[0]["worst_case_cost"])) > 1e-9:
+    raise RuntimeError("Pareto-HNDT must preserve the exact scalar-HNDT minimax optimum.")
+if float(proposal.iloc[0]["mean_cost"]) > float(scalar.iloc[0]["mean_cost"]) + 1e-9:
+    raise RuntimeError("Pareto-HNDT unexpectedly worsened mean cost at the minimax optimum.")
+print("✅ Pareto-HNDT minimax-preservation and mean non-regression checks passed.")
 
 print("\n### 10. Package reproducibility artifacts")
 if ARTIFACT_DIR.exists():

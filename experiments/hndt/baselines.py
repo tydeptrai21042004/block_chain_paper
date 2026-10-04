@@ -196,3 +196,134 @@ def direct_native_policy(model: CostModel) -> Dict[Interval, Action]:
     if raw is None or not isfinite(float(raw)):
         raise ValueError("full-trace native verification cost is unavailable")
     return {(0, model.n): Action.settle("native")}
+
+
+def constant_query_cost(model: CostModel, tie_tolerance: float = 1e-12) -> float:
+    """Return the common finite split-query cost, or raise if it is not constant.
+
+    The classical alphabetic-tree reductions are exact only when each tree edge
+    has the same additive query cost.  Models built by ``hndt.io.build_model``
+    satisfy this because they use one Merkle depth for the committed trace.
+    """
+
+    from math import isnan
+
+    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+        raise ValueError("tie_tolerance must be non-negative and not NaN")
+    seen = None
+    for span in range(2, model.n + 1):
+        for i in range(0, model.n - span + 1):
+            j = i + span
+            for k in range(i + 1, j):
+                q = model.checked_query_cost(i, j, k)
+                if not isfinite(q):
+                    raise ValueError("classical alphabetic-tree baseline requires finite query costs")
+                if seen is None:
+                    seen = q
+                elif abs(q - seen) > tie_tolerance:
+                    raise ValueError(
+                        "classical alphabetic-tree baseline requires a constant query cost"
+                    )
+    return 0.0 if seen is None else float(seen)
+
+
+def kirkpatrick_klawe_atomic_policy(model: CostModel) -> Dict[Interval, Action]:
+    """Alphabetic-minimax objective adaptation (Kirkpatrick--Klawe, 1985).
+
+    With forced atomic leaves and constant query cost q, an atomic fault at t
+    pays A_t + q d_t.  Dividing by q (for q>0) yields the classical objective
+    max_t(A_t/q + d_t).  For q=0 the same exact atomic minimax DP remains the
+    continuous zero-edge-cost limit.  The implementation uses the repository's
+    exact forced-atomic HNDT solver rather than reimplementing the historical
+    construction, but optimizes the same binary alphabetic minimax objective.
+    """
+
+    constant_query_cost(model)
+    return optimal_split_atomic_policy(model)
+
+
+def optimal_mean_atomic_policy(
+    model: CostModel,
+    fault_weights=None,
+    tie_tolerance: float = 1e-12,
+) -> Dict[Interval, Action]:
+    """Exact forced-atomic policy minimizing weighted mean fault-path cost.
+
+    This is kept independent from Pareto-HNDT so it can serve as an external
+    objective baseline.  Under constant query cost, fixed atomic leaves, and
+    weights p_t, the tree-dependent term is q * sum_t p_t d_t, exactly the
+    optimal alphabetic weighted-path-length objective.
+    """
+
+    from math import inf, isnan
+    from .pareto import normalize_fault_weights
+
+    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+        raise ValueError("tie_tolerance must be non-negative and not NaN")
+
+    weights = normalize_fault_weights(model.n, fault_weights)
+    prefix = [0.0]
+    for weight in weights:
+        prefix.append(prefix[-1] + weight)
+
+    def mass(i: int, j: int) -> float:
+        return prefix[j] - prefix[i]
+
+    value: Dict[Interval, float] = {}
+    actions: Dict[Interval, Action] = {}
+    rounds: Dict[Interval, int] = {}
+
+    for length in range(1, model.n + 1):
+        for i in range(0, model.n - length + 1):
+            j = i + length
+            if length == 1:
+                cost, backend = model.best_terminal(i, j)
+                if backend is None or not isfinite(cost):
+                    raise ValueError(f"Atomic interval [{i},{j}] has no terminal backend")
+                value[(i, j)] = mass(i, j) * cost
+                actions[(i, j)] = Action.settle(backend)
+                rounds[(i, j)] = 0
+                continue
+
+            best = inf
+            best_action = None
+            best_rounds = 10**9
+            midpoint = (i + j) / 2.0
+            best_key = None
+            for k in range(i + 1, j):
+                q = model.checked_query_cost(i, j, k)
+                if not isfinite(q):
+                    continue
+                candidate = mass(i, j) * q + value[(i, k)] + value[(k, j)]
+                candidate_rounds = 1 + max(rounds[(i, k)], rounds[(k, j)])
+                key = (candidate_rounds, abs(k - midpoint), k)
+                if candidate < best - tie_tolerance or (
+                    abs(candidate - best) <= tie_tolerance
+                    and (best_key is None or key < best_key)
+                ):
+                    best = candidate
+                    best_action = Action.split_at(k)
+                    best_rounds = candidate_rounds
+                    best_key = key
+
+            if best_action is None:
+                raise ValueError(f"Mean-optimal atomic policy is infeasible on [{i},{j}]")
+            value[(i, j)] = best
+            actions[(i, j)] = best_action
+            rounds[(i, j)] = best_rounds
+
+    # All intervals can be retained; evaluate_policy only traverses reachable ones.
+    return actions
+
+
+def hu_tucker_atomic_policy(model: CostModel, fault_weights=None) -> Dict[Interval, Action]:
+    """Hu--Tucker weighted-path-length objective adaptation.
+
+    The historical Hu--Tucker problem assumes ordered fixed leaves and constant
+    per-edge search cost.  This adapter enforces those conditions, then solves
+    the same objective exactly by interval DP.  Uniform weights are used unless
+    explicit fault weights are provided; no fault-frequency model is invented.
+    """
+
+    constant_query_cost(model)
+    return optimal_mean_atomic_policy(model, fault_weights=fault_weights)

@@ -91,9 +91,11 @@ A completed run writes:
 - `literature_individual_summary.csv` — individual adapted-paper rows even if
   they collapse numerically;
 - `literature_policy_groups.csv` — equivalence-group audit;
-- `mechanism_ablation.csv` — 2x2 adaptive-split/adaptive-stop isolation;
+- `proposal_ablation.csv` — adaptive split / adaptive stop / minimax-safe mean-refinement isolation;
+- `pareto_frontier.csv` — exact worst-case/mean cost frontier;
+- `proposal_gain.csv` — Pareto-HNDT versus scalar HNDT;
 - `round_budget_frontier.csv` — exact cost vs hard interaction-round budget;
-- `hndt_policy_audit.csv` — chosen action, best alternative, and action margin;
+- `hndt_scalar_policy_audit.csv` — scalar-HNDT chosen action, best alternative, and action margin;
 - `heterogeneity_ablation.csv`;
 - `optional_policy_status.csv` — skipped/available ZK and full-native extremes;
 - `policies/*.json`;

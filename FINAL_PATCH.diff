@@ -1,0 +1,2177 @@
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/BASELINES.md block_chain_paper_work/block_chain_paper-main/BASELINES.md
+--- block_chain_paper_original/block_chain_paper-main/BASELINES.md	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/BASELINES.md	2026-10-04 04:46:08.864259054 +0000
+@@ -1,81 +1,94 @@
+ # Paper-grounded comparison policies
+ 
+-The experiment uses one common CellVG cost table and changes only the dispute
+-policy. This is important: the repository does **not** claim to reproduce three
+-complete external blockchain stacks. It reproduces the comparable localization
+-component supported by each cited paper and records the missing components
+-explicitly in `literature_baselines.csv`.
+-
+-## 1. Arbitrum-IVP common-trace adaptation
+-
+-**Source:** Harry Kalodner et al., *Arbitrum: Scalable, Private Smart
+-Contracts*, USENIX Security 2018.
+-
+-- https://www.usenix.org/conference/usenixsecurity18/presentation/kalodner
+-- comparable component: recursively bisect a disputed assertion until one
+-  atomic transition remains;
+-- common-testbed terminal action: measured native CKB-VM verification;
+-- excluded: Arbitrum VM economics, staking, and full assertion protocol.
+-
+-## 2. opML Phase-1 common-trace adaptation
+-
+-**Source:** K. D. Conway et al., *opML: Optimistic Machine Learning on
+-Blockchain*, 2024.
+-
+-- https://arxiv.org/abs/2401.17555
+-- comparable component: operator-level bisection/localization;
+-- common-testbed terminal action: measured native CKB operator verification;
+-- excluded: opML's second VM-microinstruction dispute phase because this
+-  artifact has no independently measured microinstruction trace. No cost is
+-  fabricated for it.
+-
+-## 3. Agatha-GPP chain projection
+-
+-**Source:** Zihan Zheng et al., *Agatha: Smart Contract for DNN Computation*,
+-2021.
+-
+-- https://arxiv.org/abs/2105.04919
+-- comparable component: graph-node pinpointing;
+-- current projection: the HNDT state space is an ordered chain, so the GPP
+-  comparison is explicitly restricted to the chain case;
+-- excluded: general-DAG GPP, Cross-evaluator Consistent Execution (XCE), and
+-  Ethereum-specific arbitration.
+-
+-## Why the three prior-work adaptations can be numerically identical
+-
+-On the current ordered 12-transition trace, all three comparable localization
+-components reduce to midpoint/pinpoint bisection followed by native atomic
+-settlement. The code detects identical policy trees and reports them **once** in
+-the main table as:
++All reported methods use the same CellVG trace and measured cost tables. The
++repository does **not** pretend to reproduce complete external systems when the
++required chain/runtime measurements are absent. Each adapter exposes a precise
++fidelity boundary in `experiments/results/.../literature_baselines.csv`.
++
++## Optimistic-system localization family
++
++The following three adapters reproduce only the comparable localization rule
++and then use the same measured native CKB-VM atomic adjudicator:
++
++1. **Arbitrum-IVP** — Kalodner et al., USENIX Security 2018. Recursive
++   challenge bisection to one disputed transition.
++2. **opML Phase-1** — Conway et al., 2024. Operator-level bisection; the
++   lower-level VM/microinstruction phase is excluded because this artifact does
++   not measure that trace.
++3. **Agatha-GPP chain projection** — Zheng et al., 2021. GPP restricted to the
++   ordered-chain case; general-DAG/XCE machinery is excluded.
++
++On the present ordered trace these can induce the same midpoint tree, so the
++main table deduplicates them as one prior-work family while preserving separate
++provenance and individual summaries.
++
++## Classical optimal-tree baselines
++
++Two additional paper-backed baselines test whether Pareto-HNDT gains are merely
++an artifact of comparing against naive midpoint search.
++
++### Alphabetic Minimax Tree objective adaptation
++
++**Source:** David G. Kirkpatrick and Maria M. Klawe, *Alphabetic Minimax
++Trees*, SIAM Journal on Computing 14(3), 1985, DOI 10.1137/0214039.
++
++Under forced atomic leaves and constant query cost `q`, a fault at transition
++`t` costs
+ 
+ ```text
+-Prior-work midpoint/pinpoint family
++A_t + q * d_t
+ ```
+ 
+-The individual policies are still serialized and individually summarized for
+-provenance. This avoids presenting three duplicate rows as three independent
+-numerical competitors.
+-
+-## Mechanism-isolation ablations
+-
+-The revised experiment adds the two restrictions needed to identify where
+-HNDT's improvement comes from:
+-
+-| Policy | Adaptive split | Adaptive stop |
+-|---|---:|---:|
+-| Prior-work midpoint/pinpoint family | No | No |
+-| Adaptive split + atomic stop | Yes | No |
+-| Midpoint split + adaptive stop | No | Yes |
+-| **HNDT** | **Yes** | **Yes** |
+-
+-It also computes an **oracle best fixed-g** policy by evaluating all feasible
+-global terminal granularities and selecting the best on the same cost table.
+-This is deliberately labeled an oracle internal ablation, not a published
+-baseline.
+-
+-## ZK comparison rule
+-
+-`operator midpoint + reproduced ZK` is executed only when a finite `zkvm` cost
+-exists on every required atomic interval. Otherwise the strategy is written to
+-`optional_policy_status.csv` as skipped. Native verification is never silently
+-substituted into a strategy labeled `+ ZK`.
++where `d_t` is its tree depth. For `q>0`, minimizing the maximum is exactly the
++paper's `max_t(w_t + d_t)` objective after setting `w_t=A_t/q`. The repository
++solves the identical objective independently using its exact interval DP.
++
++### Hu-Tucker weighted-path objective adaptation
++
++**Source:** T. C. Hu and A. C. Tucker, *Optimal Computer Search Trees and
++Variable-Length Alphabetical Codes*, SIAM Journal on Applied Mathematics
++21(4), 1971, DOI 10.1137/0121057.
++
++With forced atomic leaves and constant query cost, minimizing weighted mean
++fault-path cost reduces to minimizing alphabetic weighted path length. The
++artifact uses uniform fault weights by default, so no fault-frequency model is
++invented. An independent interval DP is used rather than copying the historical
++construction algorithm.
++
++## zk-OPML operator-dispute baseline
++
++**Source:** Vid Keršič and Muhamed Turkanović, *zk-OPML: Using zero-knowledge
++proofs to optimize OPML*, 2026, DOI 10.1007/s44443-026-00573-1.
++
++The paper's comparable structure is binary operator localization followed by a
++ZK proof of the isolated ONNX operator. This adapter is run **only** when every
++atomic interval has an independently reproduced finite `zkvm` cost. Otherwise
++it is explicitly marked skipped; native verification is never substituted into
++a row labelled ZK.
++
++## Proposal and ablations
++
++The revised proposal is **Pareto-HNDT (minimax-safe)**. It computes the exact
++nondominated frontier of
++
++```text
++(worst-case fault-path cost, uniform-mean fault-path cost)
++```
++
++and then minimizes mean cost subject to preserving the exact scalar HNDT
++minimax optimum. No weighted-sum scalarization parameter is introduced.
++
++The experiment also reports:
++
++- scalar HNDT (minimax only) — removes the new secondary objective;
++- adaptive split + atomic stop — removes adaptive stopping;
++- midpoint split + adaptive stop — removes adaptive split placement;
++- midpoint atomic literature family — removes both adaptive mechanisms;
++- Pareto mean-first endpoint — shows the worst/mean trade-off if minimax safety
++  is deliberately relaxed;
++- oracle best fixed-`g` and requested fixed-`g` policies;
++- heterogeneity and round-budget diagnostics.
++
++The key machine-readable outputs are `summary.csv`, `proposal_ablation.csv`,
++`pareto_frontier.csv`, `literature_individual_summary.csv`, and
++`literature_baselines.csv`.
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/CHANGE_MANIFEST.md block_chain_paper_work/block_chain_paper-main/CHANGE_MANIFEST.md
+--- block_chain_paper_original/block_chain_paper-main/CHANGE_MANIFEST.md	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/CHANGE_MANIFEST.md	2026-10-04 04:49:12.746090817 +0000
+@@ -1,64 +1,54 @@
+-# Change-only revision manifest
++# Change manifest — Pareto-HNDT revision
+ 
+-Base compared: `block_chain_paper-main (2).zip`.
++Base compared: `block_chain_paper-main(4).zip`.
+ 
+-This revision is designed as an overlay: copy these changed/new files over the
+-base repository while preserving the directory structure.
++## Scientific changes
+ 
+-## Main scientific changes
++1. **Pareto-HNDT proposal**
++   - exact nondominated frontier of worst-case and uniform-mean fault-path cost;
++   - minimax-safe lexicographic selection: preserve exact scalar-HNDT optimum,
++     then minimize mean among all minimax-optimal policies;
++   - no weighted-sum coefficient or additional proposal hyperparameter.
++
++2. **Paper-grounded baseline expansion**
++   - existing Arbitrum-IVP, opML Phase-1, and Agatha-GPP chain adaptations;
++   - Kirkpatrick--Klawe alphabetic-minimax objective adaptation;
++   - Hu--Tucker alphabetic weighted-path objective adaptation;
++   - conditional zk-OPML operator-dispute baseline requiring complete reproduced
++     atomic `zkvm` costs.
+ 
+-1. **Correct Merkle semantics**
+-   - supplied sibling digests;
+-   - one parent hash per proof level;
+-   - actual leaf-index ordering;
+-   - real 13-state / padded-16 tree with known-root validation;
+-   - separate proof-access benchmark.
+-
+-2. **Real state-chained neural interval verification**
+-   - deterministic generated integer weights and input;
+-   - exact checkpoints `S0...S12` with canonical LeNet-5 dimensions;
+-   - every measured interval starts from `S_i`, executes the true operator
+-     chain, and must exactly equal `S_j`;
+-   - all 42 span-1..4 intervals are generator-tested.
+-
+-3. **Corrected paper-grounded comparison layer**
+-   - Arbitrum-IVP common-trace adaptation;
+-   - opML explicitly limited to Phase-1/operator localization;
+-   - Agatha-GPP explicitly limited to the ordered-chain projection;
+-   - duplicate prior-work trees are deduplicated in the main table while
+-     retaining individual provenance and summaries.
+-
+-4. **Mechanism-isolation evaluation**
++3. **Ablation expansion**
++   - scalar HNDT (removes the new secondary objective);
+    - adaptive split + atomic stop;
+    - midpoint split + adaptive stop;
+-   - oracle best fixed-`g`;
+-   - strict optional ZK/full-native availability status.
+-
+-5. **Proposal-method improvement**
+-   - exact round-constrained HNDT `F_r(i,j)`;
+-   - monotonic cost-vs-round frontier;
+-   - recovery of unconstrained HNDT with sufficient budget;
+-   - policy audit with best-alternative action and action margin.
+-
+-6. **Paper synchronization**
+-   - manuscript now describes the true benchmark semantics;
+-   - Agatha added to related work/bibliography;
+-   - method includes round-constrained HNDT and proposition;
+-   - validation table matches the new baseline/ablation design;
+-   - compiled 31-page PDF snapshot included.
++   - Pareto mean-first endpoint;
++   - oracle and requested fixed-`g` policies;
++   - heterogeneity and round-budget diagnostics.
++
++4. **New outputs**
++   - `pareto_frontier.csv`;
++   - `proposal_ablation.csv`;
++   - `proposal_gain.csv`;
++   - Pareto/scalar policy JSON files;
++   - updated literature provenance and individual summaries.
++
++## Code changes
++
++- new `experiments/hndt/pareto.py`;
++- expanded `experiments/hndt/baselines.py`;
++- expanded `experiments/hndt/literature_baselines.py`;
++- revised `experiments/run_experiment.py`;
++- revised plotting and Kaggle reproduction scripts;
++- new exhaustive `experiments/tests/test_pareto.py`;
++- updated baseline tests and documentation.
+ 
+ ## Validation
+ 
+-- 66/66 Python tests passed.
+-- 13/13 canonical Merkle proofs validated.
+-- 42/42 measured neural intervals validated as state chained.
+-- synthetic integration run passed.
+-- manuscript compiled twice with `pdflatex -halt-on-error` and rendered pages
+-  were visually checked.
+-
+-## Remaining external measurement step
+-
+-This environment does not contain `cargo`, `rustc`, or `ckb-debugger`, so the
+-final CKB binary and real cycle counts were not executed here. No cycle values
+-were fabricated; manuscript result placeholders remain blank until a target
+-CKB measurement run is completed.
++- **75/75 Python tests passed**;
++- **13/13** canonical Merkle proofs validated;
++- **42/42** state-chained LeNet intervals validated;
++- synthetic integration run passed;
++- documentation-link regression passed.
++
++The RISC-V/CKB binary build is conditionally skipped in this container because
++the target toolchain is unavailable. No real cycle values were invented.
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/CORRECTED_REPO_CHANGELOG.md block_chain_paper_work/block_chain_paper-main/CORRECTED_REPO_CHANGELOG.md
+--- block_chain_paper_original/block_chain_paper-main/CORRECTED_REPO_CHANGELOG.md	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/CORRECTED_REPO_CHANGELOG.md	2026-10-04 04:49:33.991971612 +0000
+@@ -1,23 +1,43 @@
+-# Corrected repository changes
++# Corrected repository changelog
+ 
+-This patch fixes the Kaggle failure without changing the CellVG/HNDT scientific method.
++This revision upgrades the proposal from scalar HNDT to **Pareto-HNDT** while
++keeping the original solver intact as a regression oracle.
+ 
+-## Functional fixes
++## Proposal-method changes
+ 
+-- `ckb_bench/Cargo.toml`: enables the `ckb-std` `allocator` feature while retaining `default-features = false`.
+-- `ckb_bench/src/main.rs`: imports and instantiates `default_alloc!()` for the `#![no_std]` CKB binary.
+-- `ckb_bench/src/main.rs`: removes one harmless redundant-parentheses warning.
+-- `run_tests.sh`: adds an early RISC-V `no_std` contract build regression check when the target is available.
+-- `paper/README.md`: supplies the documentation target referenced by `README.md` and `EXPERIMENT_GUIDE.md`, so the documentation-link unit test passes without an ad-hoc notebook patch.
+-- `KAGGLE_ONE_CELL.py`: complete one-cell Kaggle reproduction script. It is idempotent and can also patch an older GitHub checkout before running.
+-
+-## Validation performed here
+-
+-- Python byte-compilation: passed.
+-- Merkle vector validation: 13/13 passed.
+-- State-chained LeNet vector validation: 42 intervals passed.
+-- Repository unit tests: 66/66 passed.
++- Added exact two-objective Pareto dynamic programming over the unchanged
++  stop-or-split action space.
++- Primary selection preserves the scalar minimax optimum exactly and minimizes
++  uniform-mean fault-path cost among all minimax-optimal policies.
++- Added exact frontier export, policy reconstruction, dominance pruning, and a
++  mean-first frontier endpoint for ablation.
++
++## Baseline changes
++
++- Retained Arbitrum-IVP, opML Phase-1, and Agatha-GPP chain adapters.
++- Added Kirkpatrick--Klawe alphabetic-minimax objective adaptation.
++- Added Hu--Tucker weighted-path objective adaptation.
++- Added conditional zk-OPML operator-dispute adapter that refuses to run when
++  any required atomic ZK cost is missing.
++- Close midpoint-system adapters are deduplicated only in the main summary;
++  individual paper provenance remains available.
++
++## Ablation/output changes
++
++- Added scalar-HNDT secondary-objective ablation.
++- Added Pareto mean-first endpoint.
++- Expanded mechanism isolation to include the new mean-refinement dimension.
++- Added `pareto_frontier.csv`, `proposal_gain.csv`, and
++  `proposal_ablation.csv`.
++- Kept fixed-`g`, heterogeneity, direct-native, and round-budget diagnostics.
++
++## Validation
++
++- Python/unit tests: **75/75 passed**.
++- Merkle vectors: **13/13 passed**.
++- State-chained LeNet vectors: **42 intervals passed**.
+ - Synthetic integration smoke test: passed.
+-- Shell syntax checks: passed.
++- Documentation links: passed.
+ 
+-The local execution container does not include Rust/Cargo, so the RISC-V binary was not built here. The Kaggle script performs the real RISC-V build as a mandatory preflight before any CKB cycle measurement.
++The current container cannot perform the real CKB RISC-V build; the Kaggle
++reproduction script keeps that build as a mandatory real-measurement preflight.
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/EXPERIMENT_GUIDE.md block_chain_paper_work/block_chain_paper-main/EXPERIMENT_GUIDE.md
+--- block_chain_paper_original/block_chain_paper-main/EXPERIMENT_GUIDE.md	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/EXPERIMENT_GUIDE.md	2026-10-04 04:47:48.048836656 +0000
+@@ -91,9 +91,11 @@
+ - `literature_individual_summary.csv` — individual adapted-paper rows even if
+   they collapse numerically;
+ - `literature_policy_groups.csv` — equivalence-group audit;
+-- `mechanism_ablation.csv` — 2x2 adaptive-split/adaptive-stop isolation;
++- `proposal_ablation.csv` — adaptive split / adaptive stop / minimax-safe mean-refinement isolation;
++- `pareto_frontier.csv` — exact worst-case/mean cost frontier;
++- `proposal_gain.csv` — Pareto-HNDT versus scalar HNDT;
+ - `round_budget_frontier.csv` — exact cost vs hard interaction-round budget;
+-- `hndt_policy_audit.csv` — chosen action, best alternative, and action margin;
++- `hndt_scalar_policy_audit.csv` — scalar-HNDT chosen action, best alternative, and action margin;
+ - `heterogeneity_ablation.csv`;
+ - `optional_policy_status.csv` — skipped/available ZK and full-native extremes;
+ - `policies/*.json`;
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/FINAL_CHANGE_COMPARISON.md block_chain_paper_work/block_chain_paper-main/FINAL_CHANGE_COMPARISON.md
+--- block_chain_paper_original/block_chain_paper-main/FINAL_CHANGE_COMPARISON.md	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/FINAL_CHANGE_COMPARISON.md	2026-10-04 04:48:11.567642047 +0000
+@@ -0,0 +1,122 @@
++# Final code-change comparison against `block_chain_paper-main(4).zip`
++
++This revision changes the **scientific center** of the proposal while preserving
++the original scalar HNDT solver as an independent regression oracle.
++
++## 1. Proposal method
++
++### Before
++
++Scalar HNDT optimized only
++
++```text
++worst-case fault-path cost
++```
++
++using the exact stop-or-split recurrence. Mean fault-path cost was reported only
++as a diagnostic and scalar-HNDT tie handling was not guaranteed to minimize it.
++
++### After — Pareto-HNDT (minimax-safe)
++
++The new solver computes the exact nondominated frontier
++
++```text
++(worst-case fault-path cost, uniform-mean fault-path cost)
++```
++
++for every interval. Direct settlement and split composition are exact:
++
++```text
++settle: (A, P_ij * A)
++split:  (q + max(W_L,W_R), P_ij*q + M_L + M_R)
++```
++
++The selected proposal is lexicographic:
++
++1. minimize worst-case cost exactly;
++2. among **all** minimax-optimal policies, minimize mean fault-path cost;
++3. only then use deterministic tertiary tie breaking.
++
++Therefore the implementation checks at runtime that
++
++```text
++W(Pareto-HNDT) == W(scalar HNDT)
++mean(Pareto-HNDT) <= mean(scalar HNDT)
++```
++
++No weighted-sum coefficient or new method hyperparameter is introduced.
++
++## 2. New theory-backed baselines
++
++Added paper-grounded objective adapters:
++
++- **Kirkpatrick--Klawe Alphabetic Minimax Tree (1985)** — exact forced-atomic,
++  constant-query reduction of `max_t(A_t + q d_t)`;
++- **Hu--Tucker Optimal Alphabetic Mean Tree (1971)** — exact forced-atomic,
++  constant-query weighted-path-length objective, using uniform fault weights by
++  default so no fault-frequency prior is invented;
++- **zk-OPML (2026)** — binary operator localization followed by strict atomic ZK
++  settlement, executed only when every required `zkvm` measurement exists.
++
++Existing Arbitrum/opML/Agatha adapters remain and are deduplicated only inside
++the close midpoint/pinpoint system family.
++
++## 3. New and strengthened ablations
++
++The main experiment now separates three proposal ingredients:
++
++| Policy | Adaptive split | Adaptive stop | Minimax-safe mean refinement |
++|---|---:|---:|---:|
++| Pareto-HNDT | yes | yes | yes |
++| Scalar HNDT | yes | yes | no |
++| Adaptive split + atomic stop | yes | no | no |
++| Midpoint + adaptive stop | no | yes | no |
++| Midpoint atomic family | no | no | no |
++
++Also added the **Pareto mean-first endpoint**. It intentionally relaxes minimax
++priority and shows the actual worst/mean trade-off rather than hiding it behind
++a scalarization constant.
++
++Existing fixed-`g`, oracle fixed-`g`, heterogeneity, direct-full-native, and
++round-budget diagnostics are retained.
++
++## 4. New outputs
++
++- `pareto_frontier.csv`
++- `pareto_hndt_policy.json`
++- `pareto_mean_first_policy.json`
++- `proposal_ablation.csv`
++- `proposal_gain.csv`
++- `hndt_scalar_policy.json`
++- `hndt_scalar_policy_audit.csv`
++
++`mechanism_ablation.csv` is retained as a backward-compatible copy of the new
++proposal ablation table.
++
++## 5. Correctness guards
++
++Added exhaustive small-instance tests that enumerate all admissible stop/split
++strategies and compare the true nondominated objective set against Pareto-HNDT.
++The test suite also checks:
++
++- exact minimax recovery from scalar HNDT;
++- mean non-regression at the minimax optimum;
++- nondominance of every retained frontier label;
++- Kirkpatrick--Klawe reduction equivalence;
++- Hu--Tucker mean-objective equivalence;
++- rejection of classical-tree provenance claims when query costs are not
++  constant;
++- strict zk-OPML measurement completeness.
++
++## 6. Validation performed in this revision
++
++- **75/75 Python tests passed**;
++- 13/13 canonical Merkle proofs passed;
++- all 42 state-chained LeNet vector checks passed;
++- synthetic integration experiment passed;
++- documentation-link test passed;
++- CKB RISC-V build regression remains conditionally skipped in this container
++  because the target toolchain is unavailable, exactly as before.
++
++The bundled synthetic demo outputs are for software verification only and must
++not be used as manuscript results.
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/KAGGLE_ONE_CELL.py block_chain_paper_work/block_chain_paper-main/KAGGLE_ONE_CELL.py
+--- block_chain_paper_original/block_chain_paper-main/KAGGLE_ONE_CELL.py	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/KAGGLE_ONE_CELL.py	2026-10-04 04:47:29.459717237 +0000
+@@ -1,4 +1,4 @@
+-# CellVG / HNDT — corrected one-cell Kaggle reproduction
++# CellVG / Pareto-HNDT — corrected one-cell Kaggle reproduction
+ # CPU only; real CKB-VM cycle measurements; no --demo for paper results.
+ 
+ import json
+@@ -179,6 +179,7 @@
+ required = [
+     "experiments/run_experiment.py",
+     "experiments/hndt/core.py",
++    "experiments/hndt/pareto.py",
+     "experiments/hndt/baselines.py",
+     "experiments/hndt/literature_baselines.py",
+     "experiments/fill_query_template_from_ckb.py",
+@@ -256,7 +257,7 @@
+ print("✅ All 42 real state-chained intervals measured.")
+ run(f"{sys.executable} experiments/fill_interval_template_from_ckb.py", cwd=ROOT)
+ 
+-print("\n### 9. Final HNDT + baselines + ablations")
++print("\n### 9. Final Pareto-HNDT + baselines + ablations")
+ if RESULT_DIR.exists():
+     shutil.rmtree(RESULT_DIR)
+ if FIGURE_DIR.exists():
+@@ -283,17 +284,19 @@
+ if not summary_file.exists():
+     raise RuntimeError("summary.csv was not generated.")
+ summary = pd.read_csv(summary_file)
+-print("\nFINAL PAPER RESULT — HNDT + BASELINES")
++print("\nFINAL PAPER RESULT — PARETO-HNDT + BASELINES")
+ display(summary.sort_values("worst_case_cost").reset_index(drop=True))
+ 
+ for filename, title in [
+-    ("mechanism_ablation.csv", "ADAPTIVE SPLIT / ADAPTIVE STOP ABLATION"),
++    ("proposal_ablation.csv", "PROPOSAL COMPONENT ABLATION"),
++    ("proposal_gain.csv", "PARETO-HNDT VS SCALAR HNDT"),
++    ("pareto_frontier.csv", "EXACT WORST/MEAN PARETO FRONTIER"),
+     ("literature_individual_summary.csv", "PAPER-SUPPORTED BASELINE ADAPTATIONS"),
+     ("literature_policy_groups.csv", "PRIOR-WORK POLICY EQUIVALENCE"),
+     ("fault_costs.csv", "FAULT AT ALL 12 OPERATOR POSITIONS"),
+     ("heterogeneity_ablation.csv", "HETEROGENEITY ABLATION"),
+     ("round_budget_frontier.csv", "HNDT ROUND-BUDGET FRONTIER"),
+-    ("hndt_policy_audit.csv", "HNDT POLICY AUDIT"),
++    ("hndt_scalar_policy_audit.csv", "SCALAR HNDT POLICY AUDIT"),
+     ("optional_policy_status.csv", "OPTIONAL BACKEND STATUS"),
+ ]:
+     path = RESULT_DIR / filename
+@@ -301,14 +304,19 @@
+         print("\n" + title)
+         display(pd.read_csv(path))
+ 
+-hndt = summary[summary["strategy"] == "HNDT"]
+-if len(hndt) != 1:
+-    raise RuntimeError("Expected exactly one HNDT summary row.")
+-if "ratio_to_optimum" in hndt.columns:
+-    ratio = float(hndt.iloc[0]["ratio_to_optimum"])
++proposal = summary[summary["strategy"] == "Pareto-HNDT (minimax-safe)"]
++scalar = summary[summary["strategy"] == "Ablation: scalar HNDT (minimax only)"]
++if len(proposal) != 1 or len(scalar) != 1:
++    raise RuntimeError("Expected exactly one Pareto-HNDT row and one scalar-HNDT ablation row.")
++if "ratio_to_optimum" in proposal.columns:
++    ratio = float(proposal.iloc[0]["ratio_to_optimum"])
+     if abs(ratio - 1.0) > 1e-9:
+-        raise RuntimeError(f"HNDT exact-optimum sanity check failed: ratio={ratio}")
+-print("✅ HNDT final-result sanity check passed.")
++        raise RuntimeError(f"Pareto-HNDT minimax sanity check failed: ratio={ratio}")
++if abs(float(proposal.iloc[0]["worst_case_cost"]) - float(scalar.iloc[0]["worst_case_cost"])) > 1e-9:
++    raise RuntimeError("Pareto-HNDT must preserve the exact scalar-HNDT minimax optimum.")
++if float(proposal.iloc[0]["mean_cost"]) > float(scalar.iloc[0]["mean_cost"]) + 1e-9:
++    raise RuntimeError("Pareto-HNDT unexpectedly worsened mean cost at the minimax optimum.")
++print("✅ Pareto-HNDT minimax-preservation and mean non-regression checks passed.")
+ 
+ print("\n### 10. Package reproducibility artifacts")
+ if ARTIFACT_DIR.exists():
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/README.md block_chain_paper_work/block_chain_paper-main/README.md
+--- block_chain_paper_original/block_chain_paper-main/README.md	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/README.md	2026-10-04 04:46:09.268369630 +0000
+@@ -1,8 +1,9 @@
+ # CellVG / HNDT artifact
+ 
+-This repository contains the HNDT optimizer, exact constrained extension,
++This repository contains the **Pareto-HNDT** optimizer, the original scalar HNDT
++solver as an independent regression oracle, the exact constrained extension,
+ state-chained CKB-VM verification benchmark, paper-grounded comparison-policy
+-adapters, tests, experiment pipeline, and a manuscript snapshot.
++adapters, tests, experiment pipeline, and manuscript-integration notes.
+ 
+ ## Start here
+ 
+@@ -21,7 +22,8 @@
+ 
+ The current suite validates:
+ 
+-- exact unconstrained HNDT;
++- exact Pareto-HNDT frontier and minimax-preserving mean selector;
++- exact unconstrained scalar HNDT recovery;
+ - exact round-budgeted HNDT;
+ - mechanism-isolation ablations;
+ - literature-adapter provenance/fidelity guards;
+@@ -55,16 +57,16 @@
+ 
+ The main run reports:
+ 
+-- **HNDT**;
+-- one deduplicated **prior-work midpoint/pinpoint family** representing the
+-  comparable Arbitrum/opML-Phase-1/Agatha-chain policies;
+-- adaptive-split-only and adaptive-stop-only mechanism ablations;
+-- oracle best fixed-`g` plus requested fixed-`g` ablations;
+-- optional reproduced ZK and direct-full-native strategies when the required
+-  measurements exist.
+-
+-Additional outputs include an exact round-budget frontier and an HNDT policy
+-audit with the cost margin to the best alternative action.
++- **Pareto-HNDT (minimax-safe)** as the primary proposal;
++- scalar HNDT as a proposal ablation/regression oracle;
++- one deduplicated Arbitrum/opML/Agatha midpoint family;
++- Kirkpatrick--Klawe alphabetic-minimax and Hu--Tucker weighted-path objective baselines;
++- conditional zk-OPML operator-level ZK comparison when complete reproduced ZK costs exist;
++- adaptive-split, adaptive-stop, mean-first, fixed-`g`, heterogeneity, and round-budget ablations.
++
++Additional outputs include the exact worst/mean Pareto frontier, a proposal-gain table,
++an exact scalar round-budget frontier, and a scalar-HNDT policy audit with the cost
++margin to the best alternative action.
+ 
+ ## Scope statement
+ 
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/TEST_REPORT.md block_chain_paper_work/block_chain_paper-main/TEST_REPORT.md
+--- block_chain_paper_original/block_chain_paper-main/TEST_REPORT.md	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/TEST_REPORT.md	2026-10-04 04:49:12.745181972 +0000
+@@ -3,43 +3,43 @@
+ Validation completed for this revision:
+ 
+ - `python -m compileall -q experiments ckb_bench`: passed;
+-- `python -m unittest discover -s experiments/tests -v`: **66/66 passed**;
++- `python -m unittest discover -s experiments/tests -v`: **75/75 passed**;
+ - synthetic end-to-end experiment: passed;
+ - corrected Merkle generator: **13/13** canonical proofs reconstruct one known
+   depth-4 root;
+-- state-chained LeNet generator: all **42** measured intervals of spans 1--4
+-  reproduce their exact end checkpoints;
+-- local Markdown link regression test: passed;
+-- manuscript: compiled twice with `pdflatex -halt-on-error`; current snapshot is
+-  **31 pages** and the modified method/results pages were rendered and visually
+-  checked.
+-
+-## What the 66 tests cover
+-
+-- exact HNDT Bellman optimality, including exhaustive enumeration on random
+-  small instances;
+-- monotonicity and backend-action properties;
++- state-chained LeNet generator: all **42** span-1..4 intervals reproduce their
++  exact end checkpoints;
++- local Markdown link regression test: passed.
++
++## What the 75 tests cover
++
++- exact scalar-HNDT Bellman optimality, including exhaustive small instances;
++- exact Pareto-HNDT frontier correctness against exhaustive strategy
++  enumeration;
++- recovery of the scalar minimax optimum by Pareto-HNDT;
++- mean-cost non-regression among minimax-optimal policies;
++- nondominance of retained Pareto labels;
+ - exact round-budgeted HNDT and recovery of the unconstrained optimum;
+-- Arbitrum/opML-Phase-1/Agatha-chain adaptation fidelity metadata and expected
+-  policy equivalence on an ordered trace;
+-- adaptive-split-only and adaptive-stop-only mechanism restrictions;
+-- strict ZK-backend completeness;
+-- all 13 canonical Merkle paths and generated Rust vector freshness;
+-- leaf-index left/right ordering and supplied-sibling regression checks;
+-- generated state-chained neural checkpoints and all 42 measured intervals;
++- Arbitrum/opML/Agatha adapter fidelity and policy equivalence on an ordered
++  trace;
++- Kirkpatrick--Klawe alphabetic-minimax objective reduction;
++- Hu--Tucker weighted-path objective reduction;
++- strict zk-OPML atomic-ZK completeness gating;
++- adaptive-split, adaptive-stop, fixed-granularity, and heterogeneity
++  ablations;
++- canonical Merkle paths and generated Rust-vector freshness;
++- state-chained neural checkpoints and all 42 interval vectors;
+ - policy traversal and per-fault evaluation;
+-- trace/query/interval/config validation;
+-- CKB log parsers;
+-- heterogeneity ablation;
++- trace/query/interval/config validation and CKB log parsers;
+ - documentation links.
+ 
+ ## Environment limitation
+ 
+-The CKB/Rust benchmark binary itself was **not compiled or executed here**
+-because this environment does not contain `cargo`, `rustc`, or `ckb-debugger`.
+-The Python generators, generated Rust constants, parser layer, runner scripts,
+-and benchmark source were validated, but final CKB cycle measurements must be
+-run on the target Linux/WSL2 setup described in [ckb_bench/README.md](ckb_bench/README.md).
++The CKB/Rust benchmark binary was **not compiled or executed in this container**
++because the required RISC-V Rust target / `ckb-debugger` toolchain is not
++available here. `run_tests.sh` retains a conditional real RISC-V build guard,
++and `KAGGLE_ONE_CELL.py` makes that build a mandatory preflight before real
++cycle measurement.
+ 
+-No real cycle numbers were invented and the manuscript result placeholders
+-remain unfilled until those measurements are available.
++No real cycle numbers were fabricated. The bundled demo data are synthetic and
++must not be used as manuscript results.
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/experiments/hndt/__init__.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/__init__.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/__init__.py	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/__init__.py	2026-10-04 04:42:57.507922617 +0000
+@@ -1,5 +1,14 @@
+ """HNDT/CellVG experiment utilities."""
+ 
+ from .core import Action, CostModel, HNDTResult, solve_hndt
++from .pareto import ParetoHNDTResult, ParetoLabel, solve_pareto_hndt
+ 
+-__all__ = ["Action", "CostModel", "HNDTResult", "solve_hndt"]
++__all__ = [
++    "Action",
++    "CostModel",
++    "HNDTResult",
++    "ParetoLabel",
++    "ParetoHNDTResult",
++    "solve_hndt",
++    "solve_pareto_hndt",
++]
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/experiments/hndt/baselines.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/baselines.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/baselines.py	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/baselines.py	2026-10-04 04:42:17.748823648 +0000
+@@ -196,3 +196,134 @@
+     if raw is None or not isfinite(float(raw)):
+         raise ValueError("full-trace native verification cost is unavailable")
+     return {(0, model.n): Action.settle("native")}
++
++
++def constant_query_cost(model: CostModel, tie_tolerance: float = 1e-12) -> float:
++    """Return the common finite split-query cost, or raise if it is not constant.
++
++    The classical alphabetic-tree reductions are exact only when each tree edge
++    has the same additive query cost.  Models built by ``hndt.io.build_model``
++    satisfy this because they use one Merkle depth for the committed trace.
++    """
++
++    from math import isnan
++
++    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
++        raise ValueError("tie_tolerance must be non-negative and not NaN")
++    seen = None
++    for span in range(2, model.n + 1):
++        for i in range(0, model.n - span + 1):
++            j = i + span
++            for k in range(i + 1, j):
++                q = model.checked_query_cost(i, j, k)
++                if not isfinite(q):
++                    raise ValueError("classical alphabetic-tree baseline requires finite query costs")
++                if seen is None:
++                    seen = q
++                elif abs(q - seen) > tie_tolerance:
++                    raise ValueError(
++                        "classical alphabetic-tree baseline requires a constant query cost"
++                    )
++    return 0.0 if seen is None else float(seen)
++
++
++def kirkpatrick_klawe_atomic_policy(model: CostModel) -> Dict[Interval, Action]:
++    """Alphabetic-minimax objective adaptation (Kirkpatrick--Klawe, 1985).
++
++    With forced atomic leaves and constant query cost q, an atomic fault at t
++    pays A_t + q d_t.  Dividing by q (for q>0) yields the classical objective
++    max_t(A_t/q + d_t).  For q=0 the same exact atomic minimax DP remains the
++    continuous zero-edge-cost limit.  The implementation uses the repository's
++    exact forced-atomic HNDT solver rather than reimplementing the historical
++    construction, but optimizes the same binary alphabetic minimax objective.
++    """
++
++    constant_query_cost(model)
++    return optimal_split_atomic_policy(model)
++
++
++def optimal_mean_atomic_policy(
++    model: CostModel,
++    fault_weights=None,
++    tie_tolerance: float = 1e-12,
++) -> Dict[Interval, Action]:
++    """Exact forced-atomic policy minimizing weighted mean fault-path cost.
++
++    This is kept independent from Pareto-HNDT so it can serve as an external
++    objective baseline.  Under constant query cost, fixed atomic leaves, and
++    weights p_t, the tree-dependent term is q * sum_t p_t d_t, exactly the
++    optimal alphabetic weighted-path-length objective.
++    """
++
++    from math import inf, isnan
++    from .pareto import normalize_fault_weights
++
++    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
++        raise ValueError("tie_tolerance must be non-negative and not NaN")
++
++    weights = normalize_fault_weights(model.n, fault_weights)
++    prefix = [0.0]
++    for weight in weights:
++        prefix.append(prefix[-1] + weight)
++
++    def mass(i: int, j: int) -> float:
++        return prefix[j] - prefix[i]
++
++    value: Dict[Interval, float] = {}
++    actions: Dict[Interval, Action] = {}
++    rounds: Dict[Interval, int] = {}
++
++    for length in range(1, model.n + 1):
++        for i in range(0, model.n - length + 1):
++            j = i + length
++            if length == 1:
++                cost, backend = model.best_terminal(i, j)
++                if backend is None or not isfinite(cost):
++                    raise ValueError(f"Atomic interval [{i},{j}] has no terminal backend")
++                value[(i, j)] = mass(i, j) * cost
++                actions[(i, j)] = Action.settle(backend)
++                rounds[(i, j)] = 0
++                continue
++
++            best = inf
++            best_action = None
++            best_rounds = 10**9
++            midpoint = (i + j) / 2.0
++            best_key = None
++            for k in range(i + 1, j):
++                q = model.checked_query_cost(i, j, k)
++                if not isfinite(q):
++                    continue
++                candidate = mass(i, j) * q + value[(i, k)] + value[(k, j)]
++                candidate_rounds = 1 + max(rounds[(i, k)], rounds[(k, j)])
++                key = (candidate_rounds, abs(k - midpoint), k)
++                if candidate < best - tie_tolerance or (
++                    abs(candidate - best) <= tie_tolerance
++                    and (best_key is None or key < best_key)
++                ):
++                    best = candidate
++                    best_action = Action.split_at(k)
++                    best_rounds = candidate_rounds
++                    best_key = key
++
++            if best_action is None:
++                raise ValueError(f"Mean-optimal atomic policy is infeasible on [{i},{j}]")
++            value[(i, j)] = best
++            actions[(i, j)] = best_action
++            rounds[(i, j)] = best_rounds
++
++    # All intervals can be retained; evaluate_policy only traverses reachable ones.
++    return actions
++
++
++def hu_tucker_atomic_policy(model: CostModel, fault_weights=None) -> Dict[Interval, Action]:
++    """Hu--Tucker weighted-path-length objective adaptation.
++
++    The historical Hu--Tucker problem assumes ordered fixed leaves and constant
++    per-edge search cost.  This adapter enforces those conditions, then solves
++    the same objective exactly by interval DP.  Uniform weights are used unless
++    explicit fault weights are provided; no fault-frequency model is invented.
++    """
++
++    constant_query_cost(model)
++    return optimal_mean_atomic_policy(model, fault_weights=fault_weights)
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/experiments/hndt/literature_baselines.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/literature_baselines.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/literature_baselines.py	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/literature_baselines.py	2026-10-04 04:42:52.928050916 +0000
+@@ -1,23 +1,24 @@
+ from __future__ import annotations
+ 
+-"""Paper-grounded localization policies adapted to CellVG's common cost model.
++"""Paper-grounded comparison policies adapted to CellVG's common cost model.
+ 
+-The code below is deliberately conservative about reproduction claims.  It
+-implements only the comparable dispute-localization component supported by the
+-cited papers, while keeping *all* terminal CKB costs, Merkle-query costs, trace
+-positions, and fault positions common with HNDT.  Components not measured in
+-this repository (for example opML's lower-level VM phase or Agatha's full DAG
+-and XCE machinery) are explicitly excluded rather than assigned invented costs.
+-
+-Because the present HNDT model is an ordered trace, these three adaptations can
+-collapse to the same midpoint tree.  The experiment reports that equivalence
+-instead of manufacturing artificial differences.
++Every adapter has an explicit fidelity boundary.  System papers contribute only
++localization/terminal behavior that can be reproduced on the current ordered
++trace; classical tree papers contribute only the optimization objective that is
++mathematically identical under the adapter's stated assumptions.  Missing
++full-system components are never assigned synthetic costs.
+ """
+ 
+ from dataclasses import dataclass
+ from typing import Callable, Dict, Tuple
+ 
+-from .baselines import _midpoint, _terminal_action
++from .baselines import (
++    _midpoint,
++    _terminal_action,
++    hu_tucker_atomic_policy,
++    kirkpatrick_klawe_atomic_policy,
++    midpoint_operator_zk_policy,
++)
+ from .core import Action, CostModel
+ 
+ Interval = Tuple[int, int]
+@@ -35,6 +36,7 @@
+     comparable_component: str
+     excluded_components: str
+     builder: Callable[[CostModel], Policy]
++    baseline_class: str = "system"
+ 
+ 
+ def _midpoint_to_native_atomic(model: CostModel, *, label: str) -> Policy:
+@@ -63,39 +65,27 @@
+ 
+ 
+ def arbitrum_ivp_policy(model: CostModel) -> Policy:
+-    """Arbitrum IVP common-trace adaptation.
+-
+-    Reproduced component: recursive bisection of a disputed assertion until one
+-    atomic transition remains.  CellVG's measured native CKB-VM verifier plays
+-    the role of the one-step adjudicator in the common testbed.
+-    """
+-
+     return _midpoint_to_native_atomic(model, label="Arbitrum-IVP")
+ 
+ 
+ def opml_phase1_policy(model: CostModel) -> Policy:
+-    """opML Phase-1/operator-localization adaptation.
+-
+-    The repository measures operator-level CKB verification, not opML's second
+-    VM-microinstruction trace.  The implementation therefore stops after the
+-    paper's operator-localization phase and uses the same measured native CKB
+-    terminal verifier as all other common-testbed methods.  No Phase-2 cost is
+-    fabricated.
+-    """
+-
+     return _midpoint_to_native_atomic(model, label="opML Phase-1")
+ 
+ 
+ def agatha_gpp_chain_policy(model: CostModel) -> Policy:
+-    """Agatha GPP projected onto CellVG's ordered chain.
++    return _midpoint_to_native_atomic(model, label="Agatha-GPP chain projection")
+ 
+-    Agatha's full GPP is graph-based.  HNDT's current state space is an ordered
+-    trace, so the only faithful comparable projection is the chain case, where
+-    graph pinpointing reduces to ordered bisection.  Full DAG scheduling, XCE,
+-    and Ethereum-specific arbitration are intentionally outside this adapter.
++
++def zkopml_operator_policy(model: CostModel) -> Policy:
++    """zk-OPML comparable operator-level adaptation.
++
++    The paper localizes by binary search to one ONNX operator and then resolves
++    that operator with a ZK proof.  The adapter is executable only when a finite
++    reproduced ``zkvm`` cost exists for every atomic operator; otherwise it is
++    skipped rather than silently using native CKB verification.
+     """
+ 
+-    return _midpoint_to_native_atomic(model, label="Agatha-GPP chain projection")
++    return midpoint_operator_zk_policy(model)
+ 
+ 
+ # Backward-compatible aliases for earlier revised archives.
+@@ -115,6 +105,7 @@
+             comparable_component="Binary challenge localization to one disputed transition.",
+             excluded_components="Arbitrum VM economics, staking, and full assertion protocol.",
+             builder=arbitrum_ivp_policy,
++            baseline_class="optimistic-system",
+         ),
+         LiteratureBaselineSpec(
+             key="opml_phase1",
+@@ -129,6 +120,7 @@
+                 "not measured, therefore not fabricated."
+             ),
+             builder=opml_phase1_policy,
++            baseline_class="optimistic-ml",
+         ),
+         LiteratureBaselineSpec(
+             key="agatha_gpp_chain",
+@@ -140,6 +132,61 @@
+             comparable_component="Graph-node pinpointing restricted to the ordered chain case.",
+             excluded_components="General DAG GPP, XCE machinery, and Ethereum-specific arbitration.",
+             builder=agatha_gpp_chain_policy,
++            baseline_class="optimistic-ml",
++        ),
++        LiteratureBaselineSpec(
++            key="kirkpatrick_klawe_minimax",
++            display_name="Alphabetic Minimax Tree (Kirkpatrick-Klawe objective adaptation)",
++            paper="Kirkpatrick and Klawe, Alphabetic Minimax Trees",
++            year=1985,
++            url="https://doi.org/10.1137/0214039",
++            fidelity="exact objective reduction under forced atomic leaves and constant query cost",
++            comparable_component=(
++                "Ordered binary tree minimizing max_t(A_t + q d_t), equivalent after "
++                "scaling to the paper's max_t(w_t + d_t) objective."
++            ),
++            excluded_components=(
++                "Historical construction algorithm itself; this repository uses an independent "
++                "exact interval DP for the mathematically identical objective."
++            ),
++            builder=kirkpatrick_klawe_atomic_policy,
++            baseline_class="classical-tree-theory",
++        ),
++        LiteratureBaselineSpec(
++            key="hu_tucker_mean",
++            display_name="Optimal Alphabetic Mean Tree (Hu-Tucker objective adaptation)",
++            paper="Hu and Tucker, Optimal Computer Search Trees and Variable-Length Alphabetical Codes",
++            year=1971,
++            url="https://doi.org/10.1137/0121057",
++            fidelity="exact objective reduction under forced atomic leaves and constant query cost",
++            comparable_component=(
++                "Ordered fixed-leaf tree minimizing weighted path length; uniform fault weights "
++                "are used unless an explicit distribution is supplied."
++            ),
++            excluded_components=(
++                "Historical Hu-Tucker construction algorithm itself; this repository uses an "
++                "independent exact interval DP for the same objective."
++            ),
++            builder=hu_tucker_atomic_policy,
++            baseline_class="classical-tree-theory",
++        ),
++        LiteratureBaselineSpec(
++            key="zkopml_operator",
++            display_name="zk-OPML operator dispute (reproduced-ZK adaptation)",
++            paper="Kersic and Turkanovic, zk-OPML: Using zero-knowledge proofs to optimize OPML",
++            year=2026,
++            url="https://doi.org/10.1007/s44443-026-00573-1",
++            fidelity="operator-localization plus reproduced atomic-ZK adaptation",
++            comparable_component=(
++                "Binary search over the operator sequence followed by ZK verification of the "
++                "isolated operator."
++            ),
++            excluded_components=(
++                "Original smart-contract/finality economics and any ZK cost not independently "
++                "reproduced in this artifact."
++            ),
++            builder=zkopml_operator_policy,
++            baseline_class="hybrid-optimistic-zk",
+         ),
+     )
+ 
+@@ -160,6 +207,7 @@
+             {
+                 "strategy": spec.display_name,
+                 "key": spec.key,
++                "baseline_class": spec.baseline_class,
+                 "paper": spec.paper,
+                 "year": spec.year,
+                 "url": spec.url,
+@@ -167,10 +215,10 @@
+                 "comparable_component": spec.comparable_component,
+                 "excluded_components": spec.excluded_components,
+                 "common_environment": (
+-                    "same ordered trace, same native CKB terminal costs, same corrected "
+-                    "Merkle query cost, same fault positions as HNDT"
++                    "same ordered trace, same measured terminal costs when required, same corrected "
++                    "Merkle query cost, same fault positions as Pareto-HNDT"
+                 ),
+-                "claim_guard": "common-testbed adaptation; not a full-system reproduction",
++                "claim_guard": "common-testbed/objective adaptation; not a full-system reproduction",
+             }
+         )
+     return rows
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/experiments/hndt/pareto.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/pareto.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/pareto.py	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/pareto.py	2026-10-04 04:41:51.228348253 +0000
+@@ -0,0 +1,355 @@
++from __future__ import annotations
++
++"""Exact Pareto extension of HNDT.
++
++The original HNDT dynamic program minimizes only the adversarial worst-case
++fault-path cost.  This module keeps the same stop-or-split action space but
++computes the nondominated frontier of
++
++    (worst-case fault-path cost, weighted mean fault-path cost).
++
++No scalarization coefficient is introduced.  The primary proposal is selected
++lexicographically: first preserve the exact HNDT minimax optimum, then minimize
++weighted mean cost among *all* minimax-optimal policies.
++
++For normalized fault weights p_t and interval mass P_ij = sum_{t=i}^{j-1} p_t,
++terminal settlement with cost A contributes
++
++    (A, P_ij A),
++
++while a split with query cost q composes child labels (W_L, M_L) and
++(W_R, M_R) as
++
++    (q + max(W_L, W_R), P_ij q + M_L + M_R).
++
++Dominated labels can be discarded exactly because both composition operators
++are monotone in each child objective.
++"""
++
++from dataclasses import dataclass
++from math import inf, isfinite, isnan
++from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple
++
++from .core import Action, CostModel
++
++Interval = Tuple[int, int]
++
++
++@dataclass(frozen=True)
++class ParetoLabel:
++    """One achievable nondominated objective pair for an interval."""
++
++    interval: Interval
++    worst_cost: float
++    mean_cost: float
++    max_rounds: int
++    action: Action
++    left: Optional["ParetoLabel"] = None
++    right: Optional["ParetoLabel"] = None
++
++
++@dataclass
++class ParetoHNDTResult:
++    """Exact Pareto-HNDT result for all intervals."""
++
++    n: int
++    weights: Tuple[float, ...]
++    frontier: Dict[Interval, Tuple[ParetoLabel, ...]]
++    selected: ParetoLabel
++    policy: Dict[Interval, Action]
++
++    @property
++    def worst_optimum(self) -> float:
++        return self.selected.worst_cost
++
++    @property
++    def mean_at_worst_optimum(self) -> float:
++        return self.selected.mean_cost
++
++    @property
++    def max_rounds(self) -> int:
++        return self.selected.max_rounds
++
++    @property
++    def root_frontier(self) -> Tuple[ParetoLabel, ...]:
++        return self.frontier[(0, self.n)]
++
++
++def normalize_fault_weights(n: int, weights: Optional[Sequence[float]] = None) -> Tuple[float, ...]:
++    """Validate and normalize nonnegative fault weights to sum to one.
++
++    ``None`` means a uniform distribution, so the second objective is the
++    arithmetic mean over all possible single-fault positions.  This is the
++    manuscript's distribution-free diagnostic: every position receives equal
++    weight and no learned fault model is required.
++    """
++
++    if not isinstance(n, int) or isinstance(n, bool) or n <= 0:
++        raise ValueError("n must be a positive integer")
++    if weights is None:
++        return tuple(1.0 / n for _ in range(n))
++    if len(weights) != n:
++        raise ValueError(f"fault weights must have length {n}, got {len(weights)}")
++    values = []
++    for index, raw in enumerate(weights):
++        value = float(raw)
++        if isnan(value) or not isfinite(value) or value < 0:
++            raise ValueError(
++                f"fault weight at position {index} must be finite and non-negative"
++            )
++        values.append(value)
++    total = sum(values)
++    if total <= 0:
++        raise ValueError("at least one fault weight must be positive")
++    return tuple(v / total for v in values)
++
++
++def _action_tie_key(label: ParetoLabel) -> tuple:
++    """Deterministic tertiary ordering that never changes the (W, M) pair."""
++
++    act = label.action
++    if act.kind == "settle":
++        backend = act.backend or ""
++        return (
++            label.max_rounds,
++            0,
++            0 if backend == "native" else 1,
++            backend,
++            -1,
++        )
++    split = -1 if act.split is None else int(act.split)
++    i, j = label.interval
++    midpoint = (i + j) / 2.0
++    return (label.max_rounds, 1, 2, "", abs(split - midpoint), split)
++
++
++def _equivalent(a: ParetoLabel, b: ParetoLabel, tol: float) -> bool:
++    return (
++        abs(a.worst_cost - b.worst_cost) <= tol
++        and abs(a.mean_cost - b.mean_cost) <= tol
++    )
++
++
++def _dominates(a: ParetoLabel, b: ParetoLabel, tol: float) -> bool:
++    no_worse = (
++        a.worst_cost <= b.worst_cost + tol
++        and a.mean_cost <= b.mean_cost + tol
++    )
++    strictly_better = (
++        a.worst_cost < b.worst_cost - tol
++        or a.mean_cost < b.mean_cost - tol
++    )
++    return no_worse and strictly_better
++
++
++def prune_nondominated(
++    labels: Iterable[ParetoLabel],
++    tie_tolerance: float = 1e-12,
++) -> Tuple[ParetoLabel, ...]:
++    """Return a deterministic exact 2-D nondominated frontier.
++
++    Equal objective pairs are collapsed using only tertiary policy preferences
++    (fewer rounds, then deterministic action ordering).  Dominance itself is
++    based solely on the two scientific objectives.
++    """
++
++    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
++        raise ValueError("tie_tolerance must be non-negative and not NaN")
++
++    finite = [
++        x
++        for x in labels
++        if isfinite(x.worst_cost) and isfinite(x.mean_cost)
++    ]
++    finite.sort(key=lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x)))
++
++    unique: list[ParetoLabel] = []
++    for label in finite:
++        duplicate_index = next(
++            (idx for idx, kept in enumerate(unique) if _equivalent(label, kept, tie_tolerance)),
++            None,
++        )
++        if duplicate_index is None:
++            unique.append(label)
++        elif _action_tie_key(label) < _action_tie_key(unique[duplicate_index]):
++            unique[duplicate_index] = label
++
++    frontier = []
++    for label in unique:
++        if any(
++            other is not label and _dominates(other, label, tie_tolerance)
++            for other in unique
++        ):
++            continue
++        frontier.append(label)
++
++    frontier.sort(key=lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x)))
++    return tuple(frontier)
++
++
++def reconstruct_policy(label: ParetoLabel) -> Dict[Interval, Action]:
++    """Reconstruct the reachable policy induced by one root label."""
++
++    policy: Dict[Interval, Action] = {}
++
++    def visit(node: ParetoLabel) -> None:
++        previous = policy.get(node.interval)
++        if previous is not None and previous != node.action:
++            raise RuntimeError(
++                f"inconsistent reconstructed actions for interval {node.interval}: "
++                f"{previous!r} vs {node.action!r}"
++            )
++        policy[node.interval] = node.action
++        if node.action.kind == "split":
++            if node.left is None or node.right is None:
++                raise RuntimeError(f"split label {node.interval} is missing child labels")
++            visit(node.left)
++            visit(node.right)
++
++    visit(label)
++    return policy
++
++
++def select_frontier_label(
++    labels: Sequence[ParetoLabel],
++    *,
++    mode: str = "minimax_safe",
++) -> ParetoLabel:
++    """Select one deterministic policy from a Pareto frontier.
++
++    ``minimax_safe`` minimizes worst-case cost first and mean cost second.
++    ``mean_first`` is an ablation endpoint that minimizes mean cost first and
++    worst-case cost second.
++    """
++
++    if not labels:
++        raise ValueError("cannot select from an empty Pareto frontier")
++    if mode == "minimax_safe":
++        key = lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x))
++    elif mode == "mean_first":
++        key = lambda x: (x.mean_cost, x.worst_cost, _action_tie_key(x))
++    else:
++        raise ValueError("mode must be 'minimax_safe' or 'mean_first'")
++    return min(labels, key=key)
++
++
++def solve_pareto_hndt(
++    model: CostModel,
++    fault_weights: Optional[Sequence[float]] = None,
++    tie_tolerance: float = 1e-12,
++) -> ParetoHNDTResult:
++    """Compute the exact Pareto frontier for HNDT's stop-or-split strategy space.
++
++    The straightforward algorithm is output-sensitive.  If ``P`` is the
++    largest interval-frontier size, candidate generation is O(n^3 P^2) in the
++    worst case before dominance pruning; storage is O(n^2 P).
++    """
++
++    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
++        raise ValueError("tie_tolerance must be non-negative and not NaN")
++
++    n = model.n
++    weights = normalize_fault_weights(n, fault_weights)
++    prefix = [0.0]
++    for weight in weights:
++        prefix.append(prefix[-1] + weight)
++
++    def mass(i: int, j: int) -> float:
++        return prefix[j] - prefix[i]
++
++    frontier: Dict[Interval, Tuple[ParetoLabel, ...]] = {}
++
++    for length in range(1, n + 1):
++        for i in range(0, n - length + 1):
++            j = i + length
++            candidates: list[ParetoLabel] = []
++            interval_mass = mass(i, j)
++
++            for backend, raw_cost in model.backends(i, j).items():
++                cost = float(raw_cost)
++                if not isfinite(cost):
++                    continue
++                candidates.append(
++                    ParetoLabel(
++                        interval=(i, j),
++                        worst_cost=cost,
++                        mean_cost=interval_mass * cost,
++                        max_rounds=0,
++                        action=Action.settle(backend),
++                    )
++                )
++
++            if length > 1:
++                for k in range(i + 1, j):
++                    q = model.checked_query_cost(i, j, k)
++                    if not isfinite(q):
++                        continue
++                    left_frontier = frontier.get((i, k), ())
++                    right_frontier = frontier.get((k, j), ())
++                    for left in left_frontier:
++                        for right in right_frontier:
++                            candidates.append(
++                                ParetoLabel(
++                                    interval=(i, j),
++                                    worst_cost=q + max(left.worst_cost, right.worst_cost),
++                                    mean_cost=(
++                                        interval_mass * q
++                                        + left.mean_cost
++                                        + right.mean_cost
++                                    ),
++                                    max_rounds=1 + max(left.max_rounds, right.max_rounds),
++                                    action=Action.split_at(k),
++                                    left=left,
++                                    right=right,
++                                )
++                            )
++
++            current = prune_nondominated(candidates, tie_tolerance=tie_tolerance)
++            if not current:
++                raise ValueError(
++                    f"Interval [{i},{j}] is unsolvable in Pareto-HNDT: no finite "
++                    "settlement and no finite split with solvable children"
++                )
++            frontier[(i, j)] = current
++
++    root_frontier = frontier[(0, n)]
++    selected = select_frontier_label(root_frontier, mode="minimax_safe")
++    policy = reconstruct_policy(selected)
++    return ParetoHNDTResult(
++        n=n,
++        weights=weights,
++        frontier=frontier,
++        selected=selected,
++        policy=policy,
++    )
++
++
++def mean_first_policy(result: ParetoHNDTResult) -> Dict[Interval, Action]:
++    """Return the mean-first endpoint of an already computed Pareto frontier."""
++
++    label = select_frontier_label(result.root_frontier, mode="mean_first")
++    return reconstruct_policy(label)
++
++
++def frontier_rows(result: ParetoHNDTResult) -> list[dict]:
++    """Machine-readable root frontier for plotting/auditing."""
++
++    selected = result.selected
++    mean_first = select_frontier_label(result.root_frontier, mode="mean_first")
++    rows = []
++    for index, label in enumerate(result.root_frontier, start=1):
++        action = label.action
++        rows.append(
++            {
++                "frontier_id": index,
++                "worst_case_cost": label.worst_cost,
++                "mean_cost": label.mean_cost,
++                "max_rounds": label.max_rounds,
++                "root_action": action.kind,
++                "root_backend": action.backend or "",
++                "root_split": "" if action.split is None else action.split,
++                "selected_minimax_safe": label is selected,
++                "selected_mean_first": label is mean_first,
++            }
++        )
++    return rows
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/experiments/plot_results.py block_chain_paper_work/block_chain_paper-main/experiments/plot_results.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/plot_results.py	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/plot_results.py	2026-10-04 04:46:20.681419010 +0000
+@@ -41,6 +41,27 @@
+     fig.savefig(out / "fault_position_cost.png", dpi=180)
+     plt.close(fig)
+ 
++    pareto_path = results / "pareto_frontier.csv"
++    if pareto_path.exists():
++        pf = read_csv(pareto_path)
++        if pf:
++            fig, ax = plt.subplots(figsize=(5.8, 4.2))
++            xs = [float(r["mean_cost"]) for r in pf]
++            ys = [float(r["worst_case_cost"]) for r in pf]
++            ax.plot(xs, ys, marker="o", linewidth=1.2)
++            for r, x, y in zip(pf, xs, ys):
++                if r.get("selected_minimax_safe", "").lower() == "true":
++                    ax.annotate("minimax-safe", (x, y), xytext=(5, 5), textcoords="offset points")
++                elif r.get("selected_mean_first", "").lower() == "true":
++                    ax.annotate("mean-first", (x, y), xytext=(5, -12), textcoords="offset points")
++            ax.set_xlabel("Mean fault-path cost")
++            ax.set_ylabel("Worst-case fault-path cost")
++            ax.grid(True, alpha=0.25)
++            fig.tight_layout()
++            fig.savefig(out / "pareto_frontier.pdf")
++            fig.savefig(out / "pareto_frontier.png", dpi=180)
++            plt.close(fig)
++
+     ab = read_csv(results / "heterogeneity_ablation.csv")
+     fig, ax = plt.subplots(figsize=(5.8, 3.8))
+     labels = [r["cost_model"] for r in ab]
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/experiments/results/README.md block_chain_paper_work/block_chain_paper-main/experiments/results/README.md
+--- block_chain_paper_original/block_chain_paper-main/experiments/results/README.md	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/results/README.md	2026-10-04 04:47:48.048716180 +0000
+@@ -10,9 +10,12 @@
+ - `literature_baselines.csv` — provenance, fidelity, exclusions, run status;
+ - `literature_individual_summary.csv` — individual paper-adaptation rows;
+ - `literature_policy_groups.csv` — identical-policy grouping;
+-- `mechanism_ablation.csv` — adaptive split vs adaptive stop;
++- `proposal_ablation.csv` — split/stop/secondary-objective mechanism isolation;
++- `mechanism_ablation.csv` — backward-compatible copy of the proposal ablation;
+ - `round_budget_frontier.csv` — exact cost/interaction frontier;
+-- `hndt_policy_audit.csv` — action alternatives and margins;
++- `pareto_frontier.csv` — exact worst/mean nondominated root frontier;
++- `proposal_gain.csv` — Pareto-HNDT versus scalar-HNDT non-regression/gain;
++- `hndt_scalar_policy_audit.csv` — scalar-HNDT action alternatives and margins;
+ - `optional_policy_status.csv` — explicitly skipped unavailable strategies;
+ - `policies/*.json`;
+ - `heterogeneity_ablation.csv`;
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/experiments/run_experiment.py block_chain_paper_work/block_chain_paper-main/experiments/run_experiment.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/run_experiment.py	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/run_experiment.py	2026-10-04 04:44:48.796404680 +0000
+@@ -15,9 +15,7 @@
+ from hndt.baselines import (
+     direct_native_policy,
+     fixed_g_policy,
+-    has_complete_atomic_backend,
+     midpoint_adaptive_stop_policy,
+-    midpoint_operator_zk_policy,
+     optimal_split_atomic_policy,
+ )
+ from hndt.core import CostModel, solve_hndt, solve_hndt_round_budget
+@@ -28,12 +26,22 @@
+     policy_signature,
+     provenance_rows,
+ )
++from hndt.pareto import (
++    frontier_rows as pareto_frontier_rows,
++    mean_first_policy,
++    solve_pareto_hndt,
++)
+ from hndt.reporting import first_split, write_csv, write_fault_paths, write_policy_json
+ 
+ 
++PROPOSAL_NAME = "Pareto-HNDT (minimax-safe)"
++SCALAR_HNDT_NAME = "Ablation: scalar HNDT (minimax only)"
++MEAN_FIRST_NAME = "Ablation: Pareto mean-first endpoint"
++
++
+ def parse_args():
+     p = argparse.ArgumentParser(
+-        description="Run the HNDT/CellVG ordered-trace dispute experiment"
++        description="Run the Pareto-HNDT/CellVG ordered-trace dispute experiment"
+     )
+     p.add_argument("--demo", action="store_true", help="Use synthetic costs only for code sanity checks")
+     p.add_argument("--trace", default=str(ROOT / "data" / "templates" / "lenet5_trace.csv"))
+@@ -50,7 +58,10 @@
+         "--round-budget",
+         type=int,
+         default=None,
+-        help="Optionally add one latency-constrained HNDT policy with at most this many split rounds",
++        help=(
++            "Optionally add one scalar-HNDT latency-constrained policy with at most this many "
++            "split rounds. The Pareto proposal itself remains unconstrained."
++        ),
+     )
+     return p.parse_args()
+ 
+@@ -68,8 +79,6 @@
+     for (i, j), backends in model.terminal_costs.items():
+         new_backends = dict(backends)
+         if "native" in new_backends:
+-            # Preserve measured interval overhead while replacing heterogeneous
+-            # atomic work by a uniform mean. Availability is unchanged.
+             measured_atomic_sum = sum(atomic[i:j])
+             residual = float(new_backends["native"]) - measured_atomic_sum
+             homogenized = residual + (j - i) * mean_atomic
+@@ -92,13 +101,12 @@
+     return max(p.total_cost for p in paths)
+ 
+ 
+-def choose_best_fixed_g(model: CostModel):
+-    """Oracle-tune one global terminal granularity on the evaluated cost table.
++def _mean(paths) -> float:
++    return sum(p.total_cost for p in paths) / len(paths)
+ 
+-    This is intentionally labelled an oracle internal ablation, not prior work.
+-    It gives fixed-granularity localization its strongest possible global choice
+-    without allowing per-interval adaptation.
+-    """
++
++def choose_best_fixed_g(model: CostModel):
++    """Oracle-tune one global terminal granularity on the evaluated cost table."""
+ 
+     candidates = []
+     for g in range(1, model.n + 1):
+@@ -107,15 +115,21 @@
+             paths = evaluate_policy(model, policy)
+         except ValueError:
+             continue
+-        candidates.append((_worst(paths), g, policy, paths))
++        candidates.append((_worst(paths), _mean(paths), g, policy, paths))
+     if not candidates:
+         raise ValueError("No feasible fixed-g policy")
+-    candidates.sort(key=lambda item: (item[0], item[1]))
++    candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+     return candidates[0]
+ 
+ 
+ def build_literature_groups(model: CostModel):
+-    """Execute literature adapters and deduplicate identical policy trees."""
++    """Execute paper adapters and deduplicate only the close system family.
++
++    Arbitrum/opML/Agatha can collapse to the same midpoint policy on an ordered
++    trace, so they are grouped to avoid pseudo-replication. Classical objective
++    baselines and zk-OPML remain individually visible even if a particular
++    trace happens to yield the same tree.
++    """
+ 
+     executed = []
+     status = []
+@@ -129,14 +143,20 @@
+ 
+     grouped = {}
+     for spec, policy in executed:
+-        grouped.setdefault(policy_signature(policy), []).append((spec, policy))
++        is_midpoint_system = spec.baseline_class in {"optimistic-system", "optimistic-ml"}
++        domain = "midpoint-system-family" if is_midpoint_system else spec.key
++        grouped.setdefault((domain, policy_signature(policy)), []).append((spec, policy))
+ 
+     groups = []
+     for index, members in enumerate(grouped.values(), start=1):
+         specs = [spec for spec, _ in members]
+         representative = members[0][1]
+-        if len(specs) > 1:
++        if len(specs) > 1 and all(
++            s.baseline_class in {"optimistic-system", "optimistic-ml"} for s in specs
++        ):
+             name = f"Prior-work midpoint/pinpoint family ({len(specs)} adapted policies)"
++        elif len(specs) > 1:
++            name = f"Equivalent literature policy family ({len(specs)} adaptations)"
+         else:
+             name = specs[0].display_name
+         groups.append(
+@@ -249,29 +269,45 @@
+         )
+         raise
+ 
++    # Original scalar minimax solver remains an independent regression oracle.
+     h = solve_hndt(model)
+ 
+-    policies = {"HNDT": h.action}
+-    categories = {"HNDT": "proposal"}
++    # Revised proposal: exact nondominated (worst, mean) frontier, followed by
++    # minimax-preserving mean minimization. Uniform fault weights are used, so
++    # no learned prior or tunable scalarization coefficient is introduced.
++    pareto = solve_pareto_hndt(model)
++    if abs(pareto.worst_optimum - h.optimum) > 1e-9:
++        raise AssertionError(
++            "Pareto-HNDT must recover the scalar HNDT minimax optimum; "
++            f"got {pareto.worst_optimum} vs {h.optimum}"
++        )
++
++    policies = {
++        PROPOSAL_NAME: pareto.policy,
++        SCALAR_HNDT_NAME: h.action,
++        MEAN_FIRST_NAME: mean_first_policy(pareto),
++    }
++    categories = {
++        PROPOSAL_NAME: "proposal",
++        SCALAR_HNDT_NAME: "proposal ablation",
++        MEAN_FIRST_NAME: "proposal ablation",
++    }
+ 
+-    # Paper-grounded adaptations are executed individually for provenance, then
+-    # deduplicated in the main table when they induce the same tree on this
+-    # ordered trace. This prevents three identical rows from looking like three
+-    # independent numerical competitors.
+     literature_executed, literature_groups, literature_status = build_literature_groups(model)
+     for group in literature_groups:
+         policies[group["name"]] = group["policy"]
+-        categories[group["name"]] = "paper-supported prior-work family"
++        categories[group["name"]] = "paper-supported baseline"
++
++    # Mechanism-isolation ablations around the same action space.
++    atomic_name = "Ablation: adaptive split + atomic stop"
++    midpoint_stop_name = "Ablation: midpoint split + adaptive stop"
++    policies[atomic_name] = optimal_split_atomic_policy(model)
++    categories[atomic_name] = "mechanism ablation"
++    policies[midpoint_stop_name] = midpoint_adaptive_stop_policy(model)
++    categories[midpoint_stop_name] = "mechanism ablation"
+ 
+-    # Mechanism-isolation ablations.
+-    policies["Ablation: adaptive split + atomic stop"] = optimal_split_atomic_policy(model)
+-    categories["Ablation: adaptive split + atomic stop"] = "mechanism ablation"
+-    policies["Ablation: midpoint split + adaptive stop"] = midpoint_adaptive_stop_policy(model)
+-    categories["Ablation: midpoint split + adaptive stop"] = "mechanism ablation"
+-
+-    # Strongest globally fixed granularity, selected with oracle access to this
+-    # evaluation cost table. This is deliberately not called prior work.
+-    best_g_cost, best_g, best_g_policy, _ = choose_best_fixed_g(model)
++    # Strongest globally fixed granularity under oracle access to this table.
++    best_g_cost, best_g_mean, best_g, best_g_policy, _ = choose_best_fixed_g(model)
+     best_g_name = f"Ablation: oracle best fixed-g (g={best_g})"
+     policies[best_g_name] = best_g_policy
+     categories[best_g_name] = "oracle internal ablation"
+@@ -291,51 +327,59 @@
+ 
+     optional_status = []
+     try:
+-        policies["Ablation: direct full native"] = direct_native_policy(model)
+-        categories["Ablation: direct full native"] = "extreme internal ablation"
+-        optional_status.append({"strategy": "Ablation: direct full native", "status": "executed", "reason": ""})
+-    except ValueError as exc:
+-        optional_status.append({"strategy": "Ablation: direct full native", "status": "skipped", "reason": str(exc)})
+-
+-    if has_complete_atomic_backend(model, "zkvm"):
+-        name = "Ablation: operator midpoint + reproduced ZK"
+-        policies[name] = midpoint_operator_zk_policy(model)
+-        categories[name] = "cross-backend ablation"
++        name = "Ablation: direct full native"
++        policies[name] = direct_native_policy(model)
++        categories[name] = "extreme internal ablation"
+         optional_status.append({"strategy": name, "status": "executed", "reason": ""})
+-    else:
++    except ValueError as exc:
+         optional_status.append(
+-            {
+-                "strategy": "Ablation: operator midpoint + reproduced ZK",
+-                "status": "skipped",
+-                "reason": "complete reproduced zkvm cost is unavailable on one or more atomic intervals",
+-            }
++            {"strategy": "Ablation: direct full native", "status": "skipped", "reason": str(exc)}
+         )
+ 
+     if args.round_budget is not None:
+         rb = solve_hndt_round_budget(model, args.round_budget)
+-        name = f"HNDT-RB (R={args.round_budget})"
++        name = f"Ablation: scalar HNDT round budget R={args.round_budget}"
+         policies[name] = rb.action
+-        categories[name] = "proposal extension"
++        categories[name] = "latency ablation"
+ 
+     paths = {name: evaluate_policy(model, policy) for name, policy in policies.items()}
++
++    # Numerical invariant: Pareto selection cannot make the scalar minimax
++    # objective worse, and it cannot have a larger mean than the old scalar
++    # tie-selected HNDT policy at the same minimax value.
++    proposal_worst = _worst(paths[PROPOSAL_NAME])
++    scalar_worst = _worst(paths[SCALAR_HNDT_NAME])
++    proposal_mean = _mean(paths[PROPOSAL_NAME])
++    scalar_mean = _mean(paths[SCALAR_HNDT_NAME])
++    if abs(proposal_worst - scalar_worst) > 1e-9:
++        raise AssertionError("Pareto-HNDT changed the exact minimax optimum")
++    if proposal_mean > scalar_mean + 1e-9:
++        raise AssertionError("Pareto-HNDT must not worsen mean cost among minimax-optimal policies")
++
+     summaries = []
+     for name, path_list in paths.items():
+-        row = summarize(name, path_list, h.optimum)
++        row = summarize(name, path_list, pareto.worst_optimum)
+         row["category"] = categories[name]
+         row["first_split"] = first_split(policies[name], model.n)
++        row["mean_delta_vs_proposal"] = row["mean_cost"] - proposal_mean
++        row["worst_delta_vs_proposal"] = row["worst_case_cost"] - proposal_worst
+         summaries.append(row)
+     write_csv(out / "summary.csv", summaries)
+     write_fault_paths(out / "fault_costs.csv", paths)
+-    write_policy_json(out / "hndt_policy.json", h.action)
++    write_policy_json(out / "pareto_hndt_policy.json", pareto.policy)
++    write_policy_json(out / "hndt_scalar_policy.json", h.action)
++    write_policy_json(out / "pareto_mean_first_policy.json", policies[MEAN_FIRST_NAME])
++    write_csv(out / "pareto_frontier.csv", pareto_frontier_rows(pareto))
+ 
+-    # Individual literature rows remain available for audit/provenance, even if
+-    # the main summary collapses identical policy trees.
++    # Individual literature rows remain available for audit/provenance even if
++    # the close midpoint systems are deduplicated in the main summary.
+     literature_individual_rows = []
+     for spec, policy in literature_executed:
+         path_list = evaluate_policy(model, policy)
+-        row = summarize(spec.display_name, path_list, h.optimum)
+-        row["category"] = "paper-supported common-testbed adaptation"
++        row = summarize(spec.display_name, path_list, pareto.worst_optimum)
++        row["category"] = f"paper-supported {spec.baseline_class} adaptation"
+         row["first_split"] = first_split(policy, model.n)
++        row["policy_signature"] = repr(policy_signature(policy))
+         literature_individual_rows.append(row)
+     write_csv(out / "literature_individual_summary.csv", literature_individual_rows)
+ 
+@@ -349,8 +393,8 @@
+                 "member_count": len(group["members"]),
+                 "identical_policy_on_current_trace": "yes" if len(group["members"]) > 1 else "n/a",
+                 "reason": (
+-                    "The current CellVG/HNDT state space is an ordered chain; midpoint-based "
+-                    "localization components therefore collapse to the same tree."
++                    "Only close midpoint-system adapters are deduplicated. Classical objective "
++                    "baselines remain individually visible even when one trace yields the same tree."
+                 ),
+             }
+         )
+@@ -376,18 +420,30 @@
+     for spec, policy in literature_executed:
+         write_policy_json(policy_dir / f"literature_{spec.key}.json", policy)
+ 
+-    write_csv(out / "hndt_policy_audit.csv", build_policy_audit(model, h))
++    # The old scalar audit remains useful as a sensitivity diagnostic.
++    write_csv(out / "hndt_scalar_policy_audit.csv", build_policy_audit(model, h))
+ 
+-    # 2x2 mechanism isolation table: adaptive split vs adaptive stop.
++    # Proposal-component ablation: split adaptivity, stopping adaptivity, and
++    # minimax-safe secondary mean optimization are separated explicitly.
+     mechanism_names = {
+-        "HNDT": (1, 1),
+-        "Ablation: adaptive split + atomic stop": (1, 0),
+-        "Ablation: midpoint split + adaptive stop": (0, 1),
++        PROPOSAL_NAME: (1, 1, 1),
++        SCALAR_HNDT_NAME: (1, 1, 0),
++        atomic_name: (1, 0, 0),
++        midpoint_stop_name: (0, 1, 0),
+     }
+-    if literature_groups:
+-        mechanism_names[literature_groups[0]["name"]] = (0, 0)
++    midpoint_group = next(
++        (
++            group["name"]
++            for group in literature_groups
++            if any(s.key == "arbitrum_ivp" for s in group["members"])
++        ),
++        None,
++    )
++    if midpoint_group is not None:
++        mechanism_names[midpoint_group] = (0, 0, 0)
++
+     mechanism_rows = []
+-    for name, (adaptive_split, adaptive_stop) in mechanism_names.items():
++    for name, (adaptive_split, adaptive_stop, secondary_mean) in mechanism_names.items():
+         if name not in paths:
+             continue
+         path_list = paths[name]
+@@ -396,23 +452,28 @@
+                 "strategy": name,
+                 "adaptive_split": adaptive_split,
+                 "adaptive_stop": adaptive_stop,
++                "minimax_safe_mean_refinement": secondary_mean,
+                 "worst_case_cost": _worst(path_list),
+-                "ratio_to_hndt": _worst(path_list) / h.optimum,
++                "mean_cost": _mean(path_list),
++                "worst_delta_vs_proposal": _worst(path_list) - proposal_worst,
++                "mean_delta_vs_proposal": _mean(path_list) - proposal_mean,
++                "ratio_to_proposal_worst": _worst(path_list) / proposal_worst,
+                 "max_rounds": max(p.rounds for p in path_list),
+                 "first_split": first_split(policies[name], model.n),
+             }
+         )
++    write_csv(out / "proposal_ablation.csv", mechanism_rows)
++    # Backward-compatible filename for older manuscript scripts.
+     write_csv(out / "mechanism_ablation.csv", mechanism_rows)
+ 
+-    # Exact cost-vs-round Pareto frontier. Infeasible small budgets are retained
+-    # explicitly rather than silently omitted.
++    # Scalar cost-vs-round frontier remains an exact latency diagnostic.
+     root_rounds = h.max_rounds[(0, model.n)]
+     max_frontier_budget = max(root_rounds, args.round_budget or 0)
+-    frontier_rows = []
++    round_rows = []
+     for budget in range(max_frontier_budget + 1):
+         try:
+             rb = solve_hndt_round_budget(model, budget)
+-            frontier_rows.append(
++            round_rows.append(
+                 {
+                     "round_budget": budget,
+                     "status": "feasible",
+@@ -423,7 +484,7 @@
+                 }
+             )
+         except ValueError as exc:
+-            frontier_rows.append(
++            round_rows.append(
+                 {
+                     "round_budget": budget,
+                     "status": "infeasible",
+@@ -434,27 +495,53 @@
+                     "reason": str(exc),
+                 }
+             )
+-    write_csv(out / "round_budget_frontier.csv", frontier_rows)
++    write_csv(out / "round_budget_frontier.csv", round_rows)
+ 
+-    # Heterogeneity ablation.
++    # Heterogeneity ablation now reports both Pareto objectives.
+     hom = homogenized_model(model)
+     hh = solve_hndt(hom)
++    ph = solve_pareto_hndt(hom)
++    hom_paths = evaluate_policy(hom, ph.policy)
+     ablation = [
+         {
+             "cost_model": "heterogeneous",
+-            "optimal_worst_case_cost": h.optimum,
+-            "first_action": first_split(h.action, model.n),
+-            "max_rounds": h.max_rounds[(0, model.n)],
++            "optimal_worst_case_cost": proposal_worst,
++            "mean_cost_at_minimax": proposal_mean,
++            "first_action": first_split(pareto.policy, model.n),
++            "max_rounds": max(p.rounds for p in paths[PROPOSAL_NAME]),
++            "root_frontier_size": len(pareto.root_frontier),
+         },
+         {
+             "cost_model": "homogenized",
+-            "optimal_worst_case_cost": hh.optimum,
+-            "first_action": first_split(hh.action, model.n),
+-            "max_rounds": hh.max_rounds[(0, model.n)],
++            "optimal_worst_case_cost": ph.worst_optimum,
++            "mean_cost_at_minimax": _mean(hom_paths),
++            "first_action": first_split(ph.policy, model.n),
++            "max_rounds": max(p.rounds for p in hom_paths),
++            "root_frontier_size": len(ph.root_frontier),
+         },
+     ]
+     write_csv(out / "heterogeneity_ablation.csv", ablation)
+-    write_policy_json(out / "hndt_policy_homogenized.json", hh.action)
++    write_policy_json(out / "pareto_hndt_policy_homogenized.json", ph.policy)
++    write_policy_json(out / "hndt_scalar_policy_homogenized.json", hh.action)
++
++    gain_rows = [
++        {
++            "comparison": "Pareto-HNDT vs scalar HNDT",
++            "pareto_worst": proposal_worst,
++            "scalar_worst": scalar_worst,
++            "worst_improvement": scalar_worst - proposal_worst,
++            "pareto_mean": proposal_mean,
++            "scalar_mean": scalar_mean,
++            "mean_improvement": scalar_mean - proposal_mean,
++            "mean_improvement_percent": (
++                100.0 * (scalar_mean - proposal_mean) / scalar_mean if scalar_mean else 0.0
++            ),
++            "guarantee": (
++                "worst costs must be equal; Pareto mean must be <= scalar-HNDT mean"
++            ),
++        }
++    ]
++    write_csv(out / "proposal_gain.csv", gain_rows)
+ 
+     metadata = {
+         "data_status": marker,
+@@ -463,10 +550,16 @@
+         "query_costs": str(query),
+         "config": str(config),
+         "n": model.n,
+-        "hndt_optimum": h.optimum,
+-        "hndt_max_rounds": root_rounds,
++        "proposal": PROPOSAL_NAME,
++        "pareto_hndt_worst_optimum": pareto.worst_optimum,
++        "pareto_hndt_mean_at_optimum": pareto.mean_at_worst_optimum,
++        "pareto_root_frontier_size": len(pareto.root_frontier),
++        "pareto_hndt_max_rounds": pareto.max_rounds,
++        "scalar_hndt_optimum": h.optimum,
++        "scalar_hndt_max_rounds": root_rounds,
+         "oracle_best_fixed_g": best_g,
+         "oracle_best_fixed_g_cost": best_g_cost,
++        "oracle_best_fixed_g_mean": best_g_mean,
+         "paper_supported_adaptations": [
+             row["strategy"] for row in literature_status if row["status"] == "executed"
+         ],
+@@ -478,8 +571,9 @@
+         ],
+         "round_budget": args.round_budget,
+         "method_note": (
+-            "HNDT remains the exact stop-or-split minimax solver. HNDT-RB is an exact "
+-            "round-constrained extension; mechanism ablations restrict either split or stop actions."
++            "Pareto-HNDT computes the exact nondominated frontier of worst-case and uniform-mean "
++            "fault-path cost, then preserves the exact scalar HNDT minimax optimum while minimizing "
++            "mean cost among all minimax-optimal policies. No scalarization hyperparameter is used."
+         ),
+     }
+     (out / "run_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/experiments/tests/test_baselines.py block_chain_paper_work/block_chain_paper-main/experiments/tests/test_baselines.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/tests/test_baselines.py	2026-10-04 03:19:47.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/tests/test_baselines.py	2026-10-04 04:45:30.172883840 +0000
+@@ -14,6 +14,9 @@
+     midpoint_atomic_policy,
+     midpoint_operator_zk_policy,
+     optimal_split_atomic_policy,
++    hu_tucker_atomic_policy,
++    kirkpatrick_klawe_atomic_policy,
++    optimal_mean_atomic_policy,
+ )
+ from hndt.core import CostModel, solve_hndt
+ from hndt.evaluate import evaluate_policy
+@@ -81,7 +84,14 @@
+         specs = literature_baselines()
+         self.assertEqual(
+             [s.key for s in specs],
+-            ["arbitrum_ivp", "opml_phase1", "agatha_gpp_chain"],
++            [
++                "arbitrum_ivp",
++                "opml_phase1",
++                "agatha_gpp_chain",
++                "kirkpatrick_klawe_minimax",
++                "hu_tucker_mean",
++                "zkopml_operator",
++            ],
+         )
+         for spec in specs:
+             self.assertTrue(spec.paper)
+@@ -144,6 +154,46 @@
+             worst = max(p.total_cost for p in evaluate_policy(model, policy))
+             self.assertLessEqual(optimum, worst + 1e-12)
+ 
++    def test_kirkpatrick_klawe_adapter_matches_forced_atomic_minimax(self):
++        terminal = {(i, i + 1): {"native": c} for i, c in enumerate([20.0, 1.0, 1.0, 1.0])}
++        model = CostModel(4, terminal, lambda i, j, k: 2.0)
++        self.assertEqual(
++            policy_signature(kirkpatrick_klawe_atomic_policy(model)),
++            policy_signature(optimal_split_atomic_policy(model)),
++        )
++
++    def test_classical_adapters_reject_nonconstant_query_cost(self):
++        terminal = {(i, i + 1): {"native": 1.0} for i in range(3)}
++        model = CostModel(
++            3,
++            terminal,
++            lambda i, j, k: 1.0 if (i, j, k) == (0, 3, 1) else 2.0,
++        )
++        with self.assertRaises(ValueError):
++            kirkpatrick_klawe_atomic_policy(model)
++        with self.assertRaises(ValueError):
++            hu_tucker_atomic_policy(model)
++
++    def test_hu_tucker_adapter_minimizes_uniform_mean_over_atomic_trees(self):
++        terminal = {(i, i + 1): {"native": float(i + 1)} for i in range(5)}
++        model = CostModel(5, terminal, lambda i, j, k: 3.0)
++        hu = hu_tucker_atomic_policy(model)
++        general = optimal_mean_atomic_policy(model)
++        hu_mean = sum(p.total_cost for p in evaluate_policy(model, hu)) / model.n
++        general_mean = sum(p.total_cost for p in evaluate_policy(model, general)) / model.n
++        self.assertAlmostEqual(hu_mean, general_mean)
++
++    def test_zkopml_literature_adapter_is_explicitly_gated(self):
++        specs = {s.key: s for s in literature_baselines()}
++        zkopml = specs["zkopml_operator"]
++        model = CostModel(
++            2,
++            {(0, 1): {"native": 1.0, "zkvm": 2.0}, (1, 2): {"native": 1.0}},
++            lambda i, j, k: 1.0,
++        )
++        with self.assertRaises(ValueError):
++            zkopml.builder(model)
++
+     def test_direct_native_requires_full_interval_measurement(self):
+         model = CostModel(2, {(0, 1): {"native": 1.0}, (1, 2): {"native": 1.0}}, lambda i, j, k: 1.0)
+         with self.assertRaises(ValueError):
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/experiments/tests/test_pareto.py block_chain_paper_work/block_chain_paper-main/experiments/tests/test_pareto.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/tests/test_pareto.py	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/tests/test_pareto.py	2026-10-04 04:45:15.468065330 +0000
+@@ -0,0 +1,152 @@
++import math
++import random
++import sys
++import unittest
++from pathlib import Path
++
++EXP = Path(__file__).resolve().parents[1]
++if str(EXP) not in sys.path:
++    sys.path.insert(0, str(EXP))
++
++from hndt.core import Action, CostModel, solve_hndt
++from hndt.evaluate import evaluate_policy
++from hndt.pareto import (
++    prune_nondominated,
++    reconstruct_policy,
++    select_frontier_label,
++    solve_pareto_hndt,
++)
++
++
++class ParetoHNDTTests(unittest.TestCase):
++    def test_minimax_projection_matches_scalar_hndt(self):
++        terminal = {
++            (0, 1): {"native": 10.0},
++            (1, 2): {"native": 2.0},
++            (2, 3): {"native": 9.0},
++            (3, 4): {"native": 1.0},
++            (0, 2): {"native": 9.0},
++            (2, 4): {"native": 8.0},
++        }
++        model = CostModel(4, terminal, lambda i, j, k: 1.5)
++        scalar = solve_hndt(model)
++        pareto = solve_pareto_hndt(model)
++        self.assertAlmostEqual(pareto.worst_optimum, scalar.optimum)
++
++    def test_selected_policy_never_worsens_scalar_mean_at_same_worst(self):
++        rng = random.Random(20261004)
++        for n in range(2, 6):
++            for _ in range(10):
++                terminal = {(i, i + 1): {"native": float(rng.randint(1, 20))} for i in range(n)}
++                for span in range(2, n + 1):
++                    for i in range(n - span + 1):
++                        j = i + span
++                        if rng.random() < 0.45:
++                            terminal[(i, j)] = {"native": float(rng.randint(2, 30))}
++                model = CostModel(n, terminal, lambda i, j, k: 2.0)
++                scalar = solve_hndt(model)
++                pareto = solve_pareto_hndt(model)
++                scalar_paths = evaluate_policy(model, scalar.action)
++                pareto_paths = evaluate_policy(model, pareto.policy)
++                scalar_worst = max(p.total_cost for p in scalar_paths)
++                pareto_worst = max(p.total_cost for p in pareto_paths)
++                scalar_mean = sum(p.total_cost for p in scalar_paths) / n
++                pareto_mean = sum(p.total_cost for p in pareto_paths) / n
++                self.assertAlmostEqual(pareto_worst, scalar_worst)
++                self.assertLessEqual(pareto_mean, scalar_mean + 1e-10)
++
++    def test_root_frontier_is_nondominated(self):
++        terminal = {
++            (0, 1): {"native": 1.0},
++            (1, 2): {"native": 9.0},
++            (2, 3): {"native": 1.0},
++            (0, 2): {"native": 7.0},
++            (1, 3): {"native": 7.0},
++        }
++        model = CostModel(3, terminal, lambda i, j, k: 1.0)
++        result = solve_pareto_hndt(model)
++        labels = result.root_frontier
++        for i, a in enumerate(labels):
++            for j, b in enumerate(labels):
++                if i == j:
++                    continue
++                dominates = (
++                    a.worst_cost <= b.worst_cost
++                    and a.mean_cost <= b.mean_cost
++                    and (a.worst_cost < b.worst_cost or a.mean_cost < b.mean_cost)
++                )
++                self.assertFalse(dominates)
++
++    def test_frontier_matches_exhaustive_small_strategy_pairs(self):
++        def all_pairs(model, i, j, weights):
++            mass = sum(weights[i:j])
++            pairs = []
++            for raw in model.backends(i, j).values():
++                c = float(raw)
++                if math.isfinite(c):
++                    pairs.append((c, mass * c))
++            for k in range(i + 1, j):
++                q = model.checked_query_cost(i, j, k)
++                if not math.isfinite(q):
++                    continue
++                for lw, lm in all_pairs(model, i, k, weights):
++                    for rw, rm in all_pairs(model, k, j, weights):
++                        pairs.append((q + max(lw, rw), mass * q + lm + rm))
++            return pairs
++
++        def brute_frontier(pairs):
++            out = set()
++            for p in pairs:
++                dominated = any(
++                    q[0] <= p[0]
++                    and q[1] <= p[1]
++                    and (q[0] < p[0] or q[1] < p[1])
++                    for q in pairs
++                )
++                if not dominated:
++                    out.add((round(p[0], 10), round(p[1], 10)))
++            return out
++
++        rng = random.Random(77)
++        for n in range(2, 5):
++            for _ in range(5):
++                terminal = {(i, i + 1): {"native": float(rng.randint(1, 9))} for i in range(n)}
++                for span in range(2, n + 1):
++                    for i in range(n - span + 1):
++                        j = i + span
++                        if rng.random() < 0.5:
++                            terminal[(i, j)] = {"native": float(rng.randint(2, 15))}
++                q_table = {
++                    (i, i + span, k): float(rng.randint(0, 4))
++                    for span in range(2, n + 1)
++                    for i in range(n - span + 1)
++                    for k in range(i + 1, i + span)
++                }
++                model = CostModel(n, terminal, lambda i, j, k, qt=q_table: qt[(i, j, k)])
++                result = solve_pareto_hndt(model)
++                weights = [1.0 / n] * n
++                expected = brute_frontier(all_pairs(model, 0, n, weights))
++                actual = {
++                    (round(x.worst_cost, 10), round(x.mean_cost, 10))
++                    for x in result.root_frontier
++                }
++                self.assertEqual(actual, expected)
++
++    def test_mean_first_endpoint_can_trade_worst_for_mean(self):
++        terminal = {
++            (0, 1): {"native": 100.0},
++            (1, 2): {"native": 1.0},
++            (2, 3): {"native": 1.0},
++            (0, 3): {"native": 60.0},
++        }
++        model = CostModel(3, terminal, lambda i, j, k: 1.0)
++        result = solve_pareto_hndt(model)
++        minimax = result.selected
++        mean_first = select_frontier_label(result.root_frontier, mode="mean_first")
++        self.assertLessEqual(mean_first.mean_cost, minimax.mean_cost + 1e-12)
++        self.assertGreaterEqual(mean_first.worst_cost + 1e-12, minimax.worst_cost)
++        self.assertTrue(reconstruct_policy(mean_first))
++
++
++if __name__ == "__main__":
++    unittest.main()
+Binary files block_chain_paper_original/block_chain_paper-main/figures/demo/fault_position_cost.pdf and block_chain_paper_work/block_chain_paper-main/figures/demo/fault_position_cost.pdf differ
+Binary files block_chain_paper_original/block_chain_paper-main/figures/demo/fault_position_cost.png and block_chain_paper_work/block_chain_paper-main/figures/demo/fault_position_cost.png differ
+Binary files block_chain_paper_original/block_chain_paper-main/figures/demo/heterogeneity_ablation.pdf and block_chain_paper_work/block_chain_paper-main/figures/demo/heterogeneity_ablation.pdf differ
+Binary files block_chain_paper_original/block_chain_paper-main/figures/demo/heterogeneity_ablation.png and block_chain_paper_work/block_chain_paper-main/figures/demo/heterogeneity_ablation.png differ
+Binary files block_chain_paper_original/block_chain_paper-main/figures/demo/pareto_frontier.pdf and block_chain_paper_work/block_chain_paper-main/figures/demo/pareto_frontier.pdf differ
+Binary files block_chain_paper_original/block_chain_paper-main/figures/demo/pareto_frontier.png and block_chain_paper_work/block_chain_paper-main/figures/demo/pareto_frontier.png differ
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' '--exclude=FINAL_PATCH.diff' block_chain_paper_original/block_chain_paper-main/paper/README.md block_chain_paper_work/block_chain_paper-main/paper/README.md
+--- block_chain_paper_original/block_chain_paper-main/paper/README.md	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/paper/README.md	2026-10-04 04:46:08.865873263 +0000
+@@ -0,0 +1,15 @@
++# Manuscript integration note
++
++The executable artifact is self-contained, but the manuscript source is not
++required for the test or benchmark pipeline. The revised code exposes the
++results needed for the paper in `experiments/results/current/`.
++
++For the proposal-method revision, use:
++
++- `pareto_frontier.csv` for the exact worst/mean frontier;
++- `proposal_gain.csv` for Pareto-HNDT versus scalar HNDT;
++- `proposal_ablation.csv` for mechanism isolation;
++- `literature_individual_summary.csv` and `literature_baselines.csv` for
++  paper-grounded comparison provenance.
++
++Do not copy synthetic demo values into a manuscript.

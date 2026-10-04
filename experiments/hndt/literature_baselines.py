@@ -1,23 +1,24 @@
 from __future__ import annotations
 
-"""Paper-grounded localization policies adapted to CellVG's common cost model.
+"""Paper-grounded comparison policies adapted to CellVG's common cost model.
 
-The code below is deliberately conservative about reproduction claims.  It
-implements only the comparable dispute-localization component supported by the
-cited papers, while keeping *all* terminal CKB costs, Merkle-query costs, trace
-positions, and fault positions common with HNDT.  Components not measured in
-this repository (for example opML's lower-level VM phase or Agatha's full DAG
-and XCE machinery) are explicitly excluded rather than assigned invented costs.
-
-Because the present HNDT model is an ordered trace, these three adaptations can
-collapse to the same midpoint tree.  The experiment reports that equivalence
-instead of manufacturing artificial differences.
+Every adapter has an explicit fidelity boundary.  System papers contribute only
+localization/terminal behavior that can be reproduced on the current ordered
+trace; classical tree papers contribute only the optimization objective that is
+mathematically identical under the adapter's stated assumptions.  Missing
+full-system components are never assigned synthetic costs.
 """
 
 from dataclasses import dataclass
 from typing import Callable, Dict, Tuple
 
-from .baselines import _midpoint, _terminal_action
+from .baselines import (
+    _midpoint,
+    _terminal_action,
+    hu_tucker_atomic_policy,
+    kirkpatrick_klawe_atomic_policy,
+    midpoint_operator_zk_policy,
+)
 from .core import Action, CostModel
 
 Interval = Tuple[int, int]
@@ -35,6 +36,7 @@ class LiteratureBaselineSpec:
     comparable_component: str
     excluded_components: str
     builder: Callable[[CostModel], Policy]
+    baseline_class: str = "system"
 
 
 def _midpoint_to_native_atomic(model: CostModel, *, label: str) -> Policy:
@@ -63,39 +65,27 @@ def _midpoint_to_native_atomic(model: CostModel, *, label: str) -> Policy:
 
 
 def arbitrum_ivp_policy(model: CostModel) -> Policy:
-    """Arbitrum IVP common-trace adaptation.
-
-    Reproduced component: recursive bisection of a disputed assertion until one
-    atomic transition remains.  CellVG's measured native CKB-VM verifier plays
-    the role of the one-step adjudicator in the common testbed.
-    """
-
     return _midpoint_to_native_atomic(model, label="Arbitrum-IVP")
 
 
 def opml_phase1_policy(model: CostModel) -> Policy:
-    """opML Phase-1/operator-localization adaptation.
-
-    The repository measures operator-level CKB verification, not opML's second
-    VM-microinstruction trace.  The implementation therefore stops after the
-    paper's operator-localization phase and uses the same measured native CKB
-    terminal verifier as all other common-testbed methods.  No Phase-2 cost is
-    fabricated.
-    """
-
     return _midpoint_to_native_atomic(model, label="opML Phase-1")
 
 
 def agatha_gpp_chain_policy(model: CostModel) -> Policy:
-    """Agatha GPP projected onto CellVG's ordered chain.
+    return _midpoint_to_native_atomic(model, label="Agatha-GPP chain projection")
 
-    Agatha's full GPP is graph-based.  HNDT's current state space is an ordered
-    trace, so the only faithful comparable projection is the chain case, where
-    graph pinpointing reduces to ordered bisection.  Full DAG scheduling, XCE,
-    and Ethereum-specific arbitration are intentionally outside this adapter.
+
+def zkopml_operator_policy(model: CostModel) -> Policy:
+    """zk-OPML comparable operator-level adaptation.
+
+    The paper localizes by binary search to one ONNX operator and then resolves
+    that operator with a ZK proof.  The adapter is executable only when a finite
+    reproduced ``zkvm`` cost exists for every atomic operator; otherwise it is
+    skipped rather than silently using native CKB verification.
     """
 
-    return _midpoint_to_native_atomic(model, label="Agatha-GPP chain projection")
+    return midpoint_operator_zk_policy(model)
 
 
 # Backward-compatible aliases for earlier revised archives.
@@ -115,6 +105,7 @@ def literature_baselines() -> tuple[LiteratureBaselineSpec, ...]:
             comparable_component="Binary challenge localization to one disputed transition.",
             excluded_components="Arbitrum VM economics, staking, and full assertion protocol.",
             builder=arbitrum_ivp_policy,
+            baseline_class="optimistic-system",
         ),
         LiteratureBaselineSpec(
             key="opml_phase1",
@@ -129,6 +120,7 @@ def literature_baselines() -> tuple[LiteratureBaselineSpec, ...]:
                 "not measured, therefore not fabricated."
             ),
             builder=opml_phase1_policy,
+            baseline_class="optimistic-ml",
         ),
         LiteratureBaselineSpec(
             key="agatha_gpp_chain",
@@ -140,6 +132,61 @@ def literature_baselines() -> tuple[LiteratureBaselineSpec, ...]:
             comparable_component="Graph-node pinpointing restricted to the ordered chain case.",
             excluded_components="General DAG GPP, XCE machinery, and Ethereum-specific arbitration.",
             builder=agatha_gpp_chain_policy,
+            baseline_class="optimistic-ml",
+        ),
+        LiteratureBaselineSpec(
+            key="kirkpatrick_klawe_minimax",
+            display_name="Alphabetic Minimax Tree (Kirkpatrick-Klawe objective adaptation)",
+            paper="Kirkpatrick and Klawe, Alphabetic Minimax Trees",
+            year=1985,
+            url="https://doi.org/10.1137/0214039",
+            fidelity="exact objective reduction under forced atomic leaves and constant query cost",
+            comparable_component=(
+                "Ordered binary tree minimizing max_t(A_t + q d_t), equivalent after "
+                "scaling to the paper's max_t(w_t + d_t) objective."
+            ),
+            excluded_components=(
+                "Historical construction algorithm itself; this repository uses an independent "
+                "exact interval DP for the mathematically identical objective."
+            ),
+            builder=kirkpatrick_klawe_atomic_policy,
+            baseline_class="classical-tree-theory",
+        ),
+        LiteratureBaselineSpec(
+            key="hu_tucker_mean",
+            display_name="Optimal Alphabetic Mean Tree (Hu-Tucker objective adaptation)",
+            paper="Hu and Tucker, Optimal Computer Search Trees and Variable-Length Alphabetical Codes",
+            year=1971,
+            url="https://doi.org/10.1137/0121057",
+            fidelity="exact objective reduction under forced atomic leaves and constant query cost",
+            comparable_component=(
+                "Ordered fixed-leaf tree minimizing weighted path length; uniform fault weights "
+                "are used unless an explicit distribution is supplied."
+            ),
+            excluded_components=(
+                "Historical Hu-Tucker construction algorithm itself; this repository uses an "
+                "independent exact interval DP for the same objective."
+            ),
+            builder=hu_tucker_atomic_policy,
+            baseline_class="classical-tree-theory",
+        ),
+        LiteratureBaselineSpec(
+            key="zkopml_operator",
+            display_name="zk-OPML operator dispute (reproduced-ZK adaptation)",
+            paper="Kersic and Turkanovic, zk-OPML: Using zero-knowledge proofs to optimize OPML",
+            year=2026,
+            url="https://doi.org/10.1007/s44443-026-00573-1",
+            fidelity="operator-localization plus reproduced atomic-ZK adaptation",
+            comparable_component=(
+                "Binary search over the operator sequence followed by ZK verification of the "
+                "isolated operator."
+            ),
+            excluded_components=(
+                "Original smart-contract/finality economics and any ZK cost not independently "
+                "reproduced in this artifact."
+            ),
+            builder=zkopml_operator_policy,
+            baseline_class="hybrid-optimistic-zk",
         ),
     )
 
@@ -160,6 +207,7 @@ def provenance_rows() -> list[dict]:
             {
                 "strategy": spec.display_name,
                 "key": spec.key,
+                "baseline_class": spec.baseline_class,
                 "paper": spec.paper,
                 "year": spec.year,
                 "url": spec.url,
@@ -167,10 +215,10 @@ def provenance_rows() -> list[dict]:
                 "comparable_component": spec.comparable_component,
                 "excluded_components": spec.excluded_components,
                 "common_environment": (
-                    "same ordered trace, same native CKB terminal costs, same corrected "
-                    "Merkle query cost, same fault positions as HNDT"
+                    "same ordered trace, same measured terminal costs when required, same corrected "
+                    "Merkle query cost, same fault positions as Pareto-HNDT"
                 ),
-                "claim_guard": "common-testbed adaptation; not a full-system reproduction",
+                "claim_guard": "common-testbed/objective adaptation; not a full-system reproduction",
             }
         )
     return rows

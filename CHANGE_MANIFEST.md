@@ -1,64 +1,54 @@
-# Change-only revision manifest
+# Change manifest — Pareto-HNDT revision
 
-Base compared: `block_chain_paper-main (2).zip`.
+Base compared: `block_chain_paper-main(4).zip`.
 
-This revision is designed as an overlay: copy these changed/new files over the
-base repository while preserving the directory structure.
+## Scientific changes
 
-## Main scientific changes
+1. **Pareto-HNDT proposal**
+   - exact nondominated frontier of worst-case and uniform-mean fault-path cost;
+   - minimax-safe lexicographic selection: preserve exact scalar-HNDT optimum,
+     then minimize mean among all minimax-optimal policies;
+   - no weighted-sum coefficient or additional proposal hyperparameter.
 
-1. **Correct Merkle semantics**
-   - supplied sibling digests;
-   - one parent hash per proof level;
-   - actual leaf-index ordering;
-   - real 13-state / padded-16 tree with known-root validation;
-   - separate proof-access benchmark.
+2. **Paper-grounded baseline expansion**
+   - existing Arbitrum-IVP, opML Phase-1, and Agatha-GPP chain adaptations;
+   - Kirkpatrick--Klawe alphabetic-minimax objective adaptation;
+   - Hu--Tucker alphabetic weighted-path objective adaptation;
+   - conditional zk-OPML operator-dispute baseline requiring complete reproduced
+     atomic `zkvm` costs.
 
-2. **Real state-chained neural interval verification**
-   - deterministic generated integer weights and input;
-   - exact checkpoints `S0...S12` with canonical LeNet-5 dimensions;
-   - every measured interval starts from `S_i`, executes the true operator
-     chain, and must exactly equal `S_j`;
-   - all 42 span-1..4 intervals are generator-tested.
-
-3. **Corrected paper-grounded comparison layer**
-   - Arbitrum-IVP common-trace adaptation;
-   - opML explicitly limited to Phase-1/operator localization;
-   - Agatha-GPP explicitly limited to the ordered-chain projection;
-   - duplicate prior-work trees are deduplicated in the main table while
-     retaining individual provenance and summaries.
-
-4. **Mechanism-isolation evaluation**
+3. **Ablation expansion**
+   - scalar HNDT (removes the new secondary objective);
    - adaptive split + atomic stop;
    - midpoint split + adaptive stop;
-   - oracle best fixed-`g`;
-   - strict optional ZK/full-native availability status.
+   - Pareto mean-first endpoint;
+   - oracle and requested fixed-`g` policies;
+   - heterogeneity and round-budget diagnostics.
 
-5. **Proposal-method improvement**
-   - exact round-constrained HNDT `F_r(i,j)`;
-   - monotonic cost-vs-round frontier;
-   - recovery of unconstrained HNDT with sufficient budget;
-   - policy audit with best-alternative action and action margin.
+4. **New outputs**
+   - `pareto_frontier.csv`;
+   - `proposal_ablation.csv`;
+   - `proposal_gain.csv`;
+   - Pareto/scalar policy JSON files;
+   - updated literature provenance and individual summaries.
 
-6. **Paper synchronization**
-   - manuscript now describes the true benchmark semantics;
-   - Agatha added to related work/bibliography;
-   - method includes round-constrained HNDT and proposition;
-   - validation table matches the new baseline/ablation design;
-   - compiled 31-page PDF snapshot included.
+## Code changes
+
+- new `experiments/hndt/pareto.py`;
+- expanded `experiments/hndt/baselines.py`;
+- expanded `experiments/hndt/literature_baselines.py`;
+- revised `experiments/run_experiment.py`;
+- revised plotting and Kaggle reproduction scripts;
+- new exhaustive `experiments/tests/test_pareto.py`;
+- updated baseline tests and documentation.
 
 ## Validation
 
-- 66/66 Python tests passed.
-- 13/13 canonical Merkle proofs validated.
-- 42/42 measured neural intervals validated as state chained.
-- synthetic integration run passed.
-- manuscript compiled twice with `pdflatex -halt-on-error` and rendered pages
-  were visually checked.
+- **75/75 Python tests passed**;
+- **13/13** canonical Merkle proofs validated;
+- **42/42** state-chained LeNet intervals validated;
+- synthetic integration run passed;
+- documentation-link regression passed.
 
-## Remaining external measurement step
-
-This environment does not contain `cargo`, `rustc`, or `ckb-debugger`, so the
-final CKB binary and real cycle counts were not executed here. No cycle values
-were fabricated; manuscript result placeholders remain blank until a target
-CKB measurement run is completed.
+The RISC-V/CKB binary build is conditionally skipped in this container because
+the target toolchain is unavailable. No real cycle values were invented.

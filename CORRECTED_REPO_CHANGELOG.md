@@ -1,23 +1,43 @@
-# Corrected repository changes
+# Corrected repository changelog
 
-This patch fixes the Kaggle failure without changing the CellVG/HNDT scientific method.
+This revision upgrades the proposal from scalar HNDT to **Pareto-HNDT** while
+keeping the original solver intact as a regression oracle.
 
-## Functional fixes
+## Proposal-method changes
 
-- `ckb_bench/Cargo.toml`: enables the `ckb-std` `allocator` feature while retaining `default-features = false`.
-- `ckb_bench/src/main.rs`: imports and instantiates `default_alloc!()` for the `#![no_std]` CKB binary.
-- `ckb_bench/src/main.rs`: removes one harmless redundant-parentheses warning.
-- `run_tests.sh`: adds an early RISC-V `no_std` contract build regression check when the target is available.
-- `paper/README.md`: supplies the documentation target referenced by `README.md` and `EXPERIMENT_GUIDE.md`, so the documentation-link unit test passes without an ad-hoc notebook patch.
-- `KAGGLE_ONE_CELL.py`: complete one-cell Kaggle reproduction script. It is idempotent and can also patch an older GitHub checkout before running.
+- Added exact two-objective Pareto dynamic programming over the unchanged
+  stop-or-split action space.
+- Primary selection preserves the scalar minimax optimum exactly and minimizes
+  uniform-mean fault-path cost among all minimax-optimal policies.
+- Added exact frontier export, policy reconstruction, dominance pruning, and a
+  mean-first frontier endpoint for ablation.
 
-## Validation performed here
+## Baseline changes
 
-- Python byte-compilation: passed.
-- Merkle vector validation: 13/13 passed.
-- State-chained LeNet vector validation: 42 intervals passed.
-- Repository unit tests: 66/66 passed.
+- Retained Arbitrum-IVP, opML Phase-1, and Agatha-GPP chain adapters.
+- Added Kirkpatrick--Klawe alphabetic-minimax objective adaptation.
+- Added Hu--Tucker weighted-path objective adaptation.
+- Added conditional zk-OPML operator-dispute adapter that refuses to run when
+  any required atomic ZK cost is missing.
+- Close midpoint-system adapters are deduplicated only in the main summary;
+  individual paper provenance remains available.
+
+## Ablation/output changes
+
+- Added scalar-HNDT secondary-objective ablation.
+- Added Pareto mean-first endpoint.
+- Expanded mechanism isolation to include the new mean-refinement dimension.
+- Added `pareto_frontier.csv`, `proposal_gain.csv`, and
+  `proposal_ablation.csv`.
+- Kept fixed-`g`, heterogeneity, direct-native, and round-budget diagnostics.
+
+## Validation
+
+- Python/unit tests: **75/75 passed**.
+- Merkle vectors: **13/13 passed**.
+- State-chained LeNet vectors: **42 intervals passed**.
 - Synthetic integration smoke test: passed.
-- Shell syntax checks: passed.
+- Documentation links: passed.
 
-The local execution container does not include Rust/Cargo, so the RISC-V binary was not built here. The Kaggle script performs the real RISC-V build as a mandatory preflight before any CKB cycle measurement.
+The current container cannot perform the real CKB RISC-V build; the Kaggle
+reproduction script keeps that build as a mandatory real-measurement preflight.

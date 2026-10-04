@@ -14,6 +14,9 @@ from hndt.baselines import (
     midpoint_atomic_policy,
     midpoint_operator_zk_policy,
     optimal_split_atomic_policy,
+    hu_tucker_atomic_policy,
+    kirkpatrick_klawe_atomic_policy,
+    optimal_mean_atomic_policy,
 )
 from hndt.core import CostModel, solve_hndt
 from hndt.evaluate import evaluate_policy
@@ -81,7 +84,14 @@ class BaselineTests(unittest.TestCase):
         specs = literature_baselines()
         self.assertEqual(
             [s.key for s in specs],
-            ["arbitrum_ivp", "opml_phase1", "agatha_gpp_chain"],
+            [
+                "arbitrum_ivp",
+                "opml_phase1",
+                "agatha_gpp_chain",
+                "kirkpatrick_klawe_minimax",
+                "hu_tucker_mean",
+                "zkopml_operator",
+            ],
         )
         for spec in specs:
             self.assertTrue(spec.paper)
@@ -143,6 +153,46 @@ class BaselineTests(unittest.TestCase):
         for policy in [optimal_split_atomic_policy(model), midpoint_adaptive_stop_policy(model)]:
             worst = max(p.total_cost for p in evaluate_policy(model, policy))
             self.assertLessEqual(optimum, worst + 1e-12)
+
+    def test_kirkpatrick_klawe_adapter_matches_forced_atomic_minimax(self):
+        terminal = {(i, i + 1): {"native": c} for i, c in enumerate([20.0, 1.0, 1.0, 1.0])}
+        model = CostModel(4, terminal, lambda i, j, k: 2.0)
+        self.assertEqual(
+            policy_signature(kirkpatrick_klawe_atomic_policy(model)),
+            policy_signature(optimal_split_atomic_policy(model)),
+        )
+
+    def test_classical_adapters_reject_nonconstant_query_cost(self):
+        terminal = {(i, i + 1): {"native": 1.0} for i in range(3)}
+        model = CostModel(
+            3,
+            terminal,
+            lambda i, j, k: 1.0 if (i, j, k) == (0, 3, 1) else 2.0,
+        )
+        with self.assertRaises(ValueError):
+            kirkpatrick_klawe_atomic_policy(model)
+        with self.assertRaises(ValueError):
+            hu_tucker_atomic_policy(model)
+
+    def test_hu_tucker_adapter_minimizes_uniform_mean_over_atomic_trees(self):
+        terminal = {(i, i + 1): {"native": float(i + 1)} for i in range(5)}
+        model = CostModel(5, terminal, lambda i, j, k: 3.0)
+        hu = hu_tucker_atomic_policy(model)
+        general = optimal_mean_atomic_policy(model)
+        hu_mean = sum(p.total_cost for p in evaluate_policy(model, hu)) / model.n
+        general_mean = sum(p.total_cost for p in evaluate_policy(model, general)) / model.n
+        self.assertAlmostEqual(hu_mean, general_mean)
+
+    def test_zkopml_literature_adapter_is_explicitly_gated(self):
+        specs = {s.key: s for s in literature_baselines()}
+        zkopml = specs["zkopml_operator"]
+        model = CostModel(
+            2,
+            {(0, 1): {"native": 1.0, "zkvm": 2.0}, (1, 2): {"native": 1.0}},
+            lambda i, j, k: 1.0,
+        )
+        with self.assertRaises(ValueError):
+            zkopml.builder(model)
 
     def test_direct_native_requires_full_interval_measurement(self):
         model = CostModel(2, {(0, 1): {"native": 1.0}, (1, 2): {"native": 1.0}}, lambda i, j, k: 1.0)

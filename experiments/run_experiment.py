@@ -15,9 +15,7 @@ if str(ROOT) not in sys.path:
 from hndt.baselines import (
     direct_native_policy,
     fixed_g_policy,
-    has_complete_atomic_backend,
     midpoint_adaptive_stop_policy,
-    midpoint_operator_zk_policy,
     optimal_split_atomic_policy,
 )
 from hndt.core import CostModel, solve_hndt, solve_hndt_round_budget
@@ -28,12 +26,22 @@ from hndt.literature_baselines import (
     policy_signature,
     provenance_rows,
 )
+from hndt.pareto import (
+    frontier_rows as pareto_frontier_rows,
+    mean_first_policy,
+    solve_pareto_hndt,
+)
 from hndt.reporting import first_split, write_csv, write_fault_paths, write_policy_json
+
+
+PROPOSAL_NAME = "Pareto-HNDT (minimax-safe)"
+SCALAR_HNDT_NAME = "Ablation: scalar HNDT (minimax only)"
+MEAN_FIRST_NAME = "Ablation: Pareto mean-first endpoint"
 
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Run the HNDT/CellVG ordered-trace dispute experiment"
+        description="Run the Pareto-HNDT/CellVG ordered-trace dispute experiment"
     )
     p.add_argument("--demo", action="store_true", help="Use synthetic costs only for code sanity checks")
     p.add_argument("--trace", default=str(ROOT / "data" / "templates" / "lenet5_trace.csv"))
@@ -50,7 +58,10 @@ def parse_args():
         "--round-budget",
         type=int,
         default=None,
-        help="Optionally add one latency-constrained HNDT policy with at most this many split rounds",
+        help=(
+            "Optionally add one scalar-HNDT latency-constrained policy with at most this many "
+            "split rounds. The Pareto proposal itself remains unconstrained."
+        ),
     )
     return p.parse_args()
 
@@ -68,8 +79,6 @@ def homogenized_model(model: CostModel) -> CostModel:
     for (i, j), backends in model.terminal_costs.items():
         new_backends = dict(backends)
         if "native" in new_backends:
-            # Preserve measured interval overhead while replacing heterogeneous
-            # atomic work by a uniform mean. Availability is unchanged.
             measured_atomic_sum = sum(atomic[i:j])
             residual = float(new_backends["native"]) - measured_atomic_sum
             homogenized = residual + (j - i) * mean_atomic
@@ -92,13 +101,12 @@ def _worst(paths) -> float:
     return max(p.total_cost for p in paths)
 
 
-def choose_best_fixed_g(model: CostModel):
-    """Oracle-tune one global terminal granularity on the evaluated cost table.
+def _mean(paths) -> float:
+    return sum(p.total_cost for p in paths) / len(paths)
 
-    This is intentionally labelled an oracle internal ablation, not prior work.
-    It gives fixed-granularity localization its strongest possible global choice
-    without allowing per-interval adaptation.
-    """
+
+def choose_best_fixed_g(model: CostModel):
+    """Oracle-tune one global terminal granularity on the evaluated cost table."""
 
     candidates = []
     for g in range(1, model.n + 1):
@@ -107,15 +115,21 @@ def choose_best_fixed_g(model: CostModel):
             paths = evaluate_policy(model, policy)
         except ValueError:
             continue
-        candidates.append((_worst(paths), g, policy, paths))
+        candidates.append((_worst(paths), _mean(paths), g, policy, paths))
     if not candidates:
         raise ValueError("No feasible fixed-g policy")
-    candidates.sort(key=lambda item: (item[0], item[1]))
+    candidates.sort(key=lambda item: (item[0], item[1], item[2]))
     return candidates[0]
 
 
 def build_literature_groups(model: CostModel):
-    """Execute literature adapters and deduplicate identical policy trees."""
+    """Execute paper adapters and deduplicate only the close system family.
+
+    Arbitrum/opML/Agatha can collapse to the same midpoint policy on an ordered
+    trace, so they are grouped to avoid pseudo-replication. Classical objective
+    baselines and zk-OPML remain individually visible even if a particular
+    trace happens to yield the same tree.
+    """
 
     executed = []
     status = []
@@ -129,14 +143,20 @@ def build_literature_groups(model: CostModel):
 
     grouped = {}
     for spec, policy in executed:
-        grouped.setdefault(policy_signature(policy), []).append((spec, policy))
+        is_midpoint_system = spec.baseline_class in {"optimistic-system", "optimistic-ml"}
+        domain = "midpoint-system-family" if is_midpoint_system else spec.key
+        grouped.setdefault((domain, policy_signature(policy)), []).append((spec, policy))
 
     groups = []
     for index, members in enumerate(grouped.values(), start=1):
         specs = [spec for spec, _ in members]
         representative = members[0][1]
-        if len(specs) > 1:
+        if len(specs) > 1 and all(
+            s.baseline_class in {"optimistic-system", "optimistic-ml"} for s in specs
+        ):
             name = f"Prior-work midpoint/pinpoint family ({len(specs)} adapted policies)"
+        elif len(specs) > 1:
+            name = f"Equivalent literature policy family ({len(specs)} adaptations)"
         else:
             name = specs[0].display_name
         groups.append(
@@ -249,29 +269,45 @@ def main():
         )
         raise
 
+    # Original scalar minimax solver remains an independent regression oracle.
     h = solve_hndt(model)
 
-    policies = {"HNDT": h.action}
-    categories = {"HNDT": "proposal"}
+    # Revised proposal: exact nondominated (worst, mean) frontier, followed by
+    # minimax-preserving mean minimization. Uniform fault weights are used, so
+    # no learned prior or tunable scalarization coefficient is introduced.
+    pareto = solve_pareto_hndt(model)
+    if abs(pareto.worst_optimum - h.optimum) > 1e-9:
+        raise AssertionError(
+            "Pareto-HNDT must recover the scalar HNDT minimax optimum; "
+            f"got {pareto.worst_optimum} vs {h.optimum}"
+        )
 
-    # Paper-grounded adaptations are executed individually for provenance, then
-    # deduplicated in the main table when they induce the same tree on this
-    # ordered trace. This prevents three identical rows from looking like three
-    # independent numerical competitors.
+    policies = {
+        PROPOSAL_NAME: pareto.policy,
+        SCALAR_HNDT_NAME: h.action,
+        MEAN_FIRST_NAME: mean_first_policy(pareto),
+    }
+    categories = {
+        PROPOSAL_NAME: "proposal",
+        SCALAR_HNDT_NAME: "proposal ablation",
+        MEAN_FIRST_NAME: "proposal ablation",
+    }
+
     literature_executed, literature_groups, literature_status = build_literature_groups(model)
     for group in literature_groups:
         policies[group["name"]] = group["policy"]
-        categories[group["name"]] = "paper-supported prior-work family"
+        categories[group["name"]] = "paper-supported baseline"
 
-    # Mechanism-isolation ablations.
-    policies["Ablation: adaptive split + atomic stop"] = optimal_split_atomic_policy(model)
-    categories["Ablation: adaptive split + atomic stop"] = "mechanism ablation"
-    policies["Ablation: midpoint split + adaptive stop"] = midpoint_adaptive_stop_policy(model)
-    categories["Ablation: midpoint split + adaptive stop"] = "mechanism ablation"
+    # Mechanism-isolation ablations around the same action space.
+    atomic_name = "Ablation: adaptive split + atomic stop"
+    midpoint_stop_name = "Ablation: midpoint split + adaptive stop"
+    policies[atomic_name] = optimal_split_atomic_policy(model)
+    categories[atomic_name] = "mechanism ablation"
+    policies[midpoint_stop_name] = midpoint_adaptive_stop_policy(model)
+    categories[midpoint_stop_name] = "mechanism ablation"
 
-    # Strongest globally fixed granularity, selected with oracle access to this
-    # evaluation cost table. This is deliberately not called prior work.
-    best_g_cost, best_g, best_g_policy, _ = choose_best_fixed_g(model)
+    # Strongest globally fixed granularity under oracle access to this table.
+    best_g_cost, best_g_mean, best_g, best_g_policy, _ = choose_best_fixed_g(model)
     best_g_name = f"Ablation: oracle best fixed-g (g={best_g})"
     policies[best_g_name] = best_g_policy
     categories[best_g_name] = "oracle internal ablation"
@@ -291,51 +327,59 @@ def main():
 
     optional_status = []
     try:
-        policies["Ablation: direct full native"] = direct_native_policy(model)
-        categories["Ablation: direct full native"] = "extreme internal ablation"
-        optional_status.append({"strategy": "Ablation: direct full native", "status": "executed", "reason": ""})
-    except ValueError as exc:
-        optional_status.append({"strategy": "Ablation: direct full native", "status": "skipped", "reason": str(exc)})
-
-    if has_complete_atomic_backend(model, "zkvm"):
-        name = "Ablation: operator midpoint + reproduced ZK"
-        policies[name] = midpoint_operator_zk_policy(model)
-        categories[name] = "cross-backend ablation"
+        name = "Ablation: direct full native"
+        policies[name] = direct_native_policy(model)
+        categories[name] = "extreme internal ablation"
         optional_status.append({"strategy": name, "status": "executed", "reason": ""})
-    else:
+    except ValueError as exc:
         optional_status.append(
-            {
-                "strategy": "Ablation: operator midpoint + reproduced ZK",
-                "status": "skipped",
-                "reason": "complete reproduced zkvm cost is unavailable on one or more atomic intervals",
-            }
+            {"strategy": "Ablation: direct full native", "status": "skipped", "reason": str(exc)}
         )
 
     if args.round_budget is not None:
         rb = solve_hndt_round_budget(model, args.round_budget)
-        name = f"HNDT-RB (R={args.round_budget})"
+        name = f"Ablation: scalar HNDT round budget R={args.round_budget}"
         policies[name] = rb.action
-        categories[name] = "proposal extension"
+        categories[name] = "latency ablation"
 
     paths = {name: evaluate_policy(model, policy) for name, policy in policies.items()}
+
+    # Numerical invariant: Pareto selection cannot make the scalar minimax
+    # objective worse, and it cannot have a larger mean than the old scalar
+    # tie-selected HNDT policy at the same minimax value.
+    proposal_worst = _worst(paths[PROPOSAL_NAME])
+    scalar_worst = _worst(paths[SCALAR_HNDT_NAME])
+    proposal_mean = _mean(paths[PROPOSAL_NAME])
+    scalar_mean = _mean(paths[SCALAR_HNDT_NAME])
+    if abs(proposal_worst - scalar_worst) > 1e-9:
+        raise AssertionError("Pareto-HNDT changed the exact minimax optimum")
+    if proposal_mean > scalar_mean + 1e-9:
+        raise AssertionError("Pareto-HNDT must not worsen mean cost among minimax-optimal policies")
+
     summaries = []
     for name, path_list in paths.items():
-        row = summarize(name, path_list, h.optimum)
+        row = summarize(name, path_list, pareto.worst_optimum)
         row["category"] = categories[name]
         row["first_split"] = first_split(policies[name], model.n)
+        row["mean_delta_vs_proposal"] = row["mean_cost"] - proposal_mean
+        row["worst_delta_vs_proposal"] = row["worst_case_cost"] - proposal_worst
         summaries.append(row)
     write_csv(out / "summary.csv", summaries)
     write_fault_paths(out / "fault_costs.csv", paths)
-    write_policy_json(out / "hndt_policy.json", h.action)
+    write_policy_json(out / "pareto_hndt_policy.json", pareto.policy)
+    write_policy_json(out / "hndt_scalar_policy.json", h.action)
+    write_policy_json(out / "pareto_mean_first_policy.json", policies[MEAN_FIRST_NAME])
+    write_csv(out / "pareto_frontier.csv", pareto_frontier_rows(pareto))
 
-    # Individual literature rows remain available for audit/provenance, even if
-    # the main summary collapses identical policy trees.
+    # Individual literature rows remain available for audit/provenance even if
+    # the close midpoint systems are deduplicated in the main summary.
     literature_individual_rows = []
     for spec, policy in literature_executed:
         path_list = evaluate_policy(model, policy)
-        row = summarize(spec.display_name, path_list, h.optimum)
-        row["category"] = "paper-supported common-testbed adaptation"
+        row = summarize(spec.display_name, path_list, pareto.worst_optimum)
+        row["category"] = f"paper-supported {spec.baseline_class} adaptation"
         row["first_split"] = first_split(policy, model.n)
+        row["policy_signature"] = repr(policy_signature(policy))
         literature_individual_rows.append(row)
     write_csv(out / "literature_individual_summary.csv", literature_individual_rows)
 
@@ -349,8 +393,8 @@ def main():
                 "member_count": len(group["members"]),
                 "identical_policy_on_current_trace": "yes" if len(group["members"]) > 1 else "n/a",
                 "reason": (
-                    "The current CellVG/HNDT state space is an ordered chain; midpoint-based "
-                    "localization components therefore collapse to the same tree."
+                    "Only close midpoint-system adapters are deduplicated. Classical objective "
+                    "baselines remain individually visible even when one trace yields the same tree."
                 ),
             }
         )
@@ -376,18 +420,30 @@ def main():
     for spec, policy in literature_executed:
         write_policy_json(policy_dir / f"literature_{spec.key}.json", policy)
 
-    write_csv(out / "hndt_policy_audit.csv", build_policy_audit(model, h))
+    # The old scalar audit remains useful as a sensitivity diagnostic.
+    write_csv(out / "hndt_scalar_policy_audit.csv", build_policy_audit(model, h))
 
-    # 2x2 mechanism isolation table: adaptive split vs adaptive stop.
+    # Proposal-component ablation: split adaptivity, stopping adaptivity, and
+    # minimax-safe secondary mean optimization are separated explicitly.
     mechanism_names = {
-        "HNDT": (1, 1),
-        "Ablation: adaptive split + atomic stop": (1, 0),
-        "Ablation: midpoint split + adaptive stop": (0, 1),
+        PROPOSAL_NAME: (1, 1, 1),
+        SCALAR_HNDT_NAME: (1, 1, 0),
+        atomic_name: (1, 0, 0),
+        midpoint_stop_name: (0, 1, 0),
     }
-    if literature_groups:
-        mechanism_names[literature_groups[0]["name"]] = (0, 0)
+    midpoint_group = next(
+        (
+            group["name"]
+            for group in literature_groups
+            if any(s.key == "arbitrum_ivp" for s in group["members"])
+        ),
+        None,
+    )
+    if midpoint_group is not None:
+        mechanism_names[midpoint_group] = (0, 0, 0)
+
     mechanism_rows = []
-    for name, (adaptive_split, adaptive_stop) in mechanism_names.items():
+    for name, (adaptive_split, adaptive_stop, secondary_mean) in mechanism_names.items():
         if name not in paths:
             continue
         path_list = paths[name]
@@ -396,23 +452,28 @@ def main():
                 "strategy": name,
                 "adaptive_split": adaptive_split,
                 "adaptive_stop": adaptive_stop,
+                "minimax_safe_mean_refinement": secondary_mean,
                 "worst_case_cost": _worst(path_list),
-                "ratio_to_hndt": _worst(path_list) / h.optimum,
+                "mean_cost": _mean(path_list),
+                "worst_delta_vs_proposal": _worst(path_list) - proposal_worst,
+                "mean_delta_vs_proposal": _mean(path_list) - proposal_mean,
+                "ratio_to_proposal_worst": _worst(path_list) / proposal_worst,
                 "max_rounds": max(p.rounds for p in path_list),
                 "first_split": first_split(policies[name], model.n),
             }
         )
+    write_csv(out / "proposal_ablation.csv", mechanism_rows)
+    # Backward-compatible filename for older manuscript scripts.
     write_csv(out / "mechanism_ablation.csv", mechanism_rows)
 
-    # Exact cost-vs-round Pareto frontier. Infeasible small budgets are retained
-    # explicitly rather than silently omitted.
+    # Scalar cost-vs-round frontier remains an exact latency diagnostic.
     root_rounds = h.max_rounds[(0, model.n)]
     max_frontier_budget = max(root_rounds, args.round_budget or 0)
-    frontier_rows = []
+    round_rows = []
     for budget in range(max_frontier_budget + 1):
         try:
             rb = solve_hndt_round_budget(model, budget)
-            frontier_rows.append(
+            round_rows.append(
                 {
                     "round_budget": budget,
                     "status": "feasible",
@@ -423,7 +484,7 @@ def main():
                 }
             )
         except ValueError as exc:
-            frontier_rows.append(
+            round_rows.append(
                 {
                     "round_budget": budget,
                     "status": "infeasible",
@@ -434,27 +495,53 @@ def main():
                     "reason": str(exc),
                 }
             )
-    write_csv(out / "round_budget_frontier.csv", frontier_rows)
+    write_csv(out / "round_budget_frontier.csv", round_rows)
 
-    # Heterogeneity ablation.
+    # Heterogeneity ablation now reports both Pareto objectives.
     hom = homogenized_model(model)
     hh = solve_hndt(hom)
+    ph = solve_pareto_hndt(hom)
+    hom_paths = evaluate_policy(hom, ph.policy)
     ablation = [
         {
             "cost_model": "heterogeneous",
-            "optimal_worst_case_cost": h.optimum,
-            "first_action": first_split(h.action, model.n),
-            "max_rounds": h.max_rounds[(0, model.n)],
+            "optimal_worst_case_cost": proposal_worst,
+            "mean_cost_at_minimax": proposal_mean,
+            "first_action": first_split(pareto.policy, model.n),
+            "max_rounds": max(p.rounds for p in paths[PROPOSAL_NAME]),
+            "root_frontier_size": len(pareto.root_frontier),
         },
         {
             "cost_model": "homogenized",
-            "optimal_worst_case_cost": hh.optimum,
-            "first_action": first_split(hh.action, model.n),
-            "max_rounds": hh.max_rounds[(0, model.n)],
+            "optimal_worst_case_cost": ph.worst_optimum,
+            "mean_cost_at_minimax": _mean(hom_paths),
+            "first_action": first_split(ph.policy, model.n),
+            "max_rounds": max(p.rounds for p in hom_paths),
+            "root_frontier_size": len(ph.root_frontier),
         },
     ]
     write_csv(out / "heterogeneity_ablation.csv", ablation)
-    write_policy_json(out / "hndt_policy_homogenized.json", hh.action)
+    write_policy_json(out / "pareto_hndt_policy_homogenized.json", ph.policy)
+    write_policy_json(out / "hndt_scalar_policy_homogenized.json", hh.action)
+
+    gain_rows = [
+        {
+            "comparison": "Pareto-HNDT vs scalar HNDT",
+            "pareto_worst": proposal_worst,
+            "scalar_worst": scalar_worst,
+            "worst_improvement": scalar_worst - proposal_worst,
+            "pareto_mean": proposal_mean,
+            "scalar_mean": scalar_mean,
+            "mean_improvement": scalar_mean - proposal_mean,
+            "mean_improvement_percent": (
+                100.0 * (scalar_mean - proposal_mean) / scalar_mean if scalar_mean else 0.0
+            ),
+            "guarantee": (
+                "worst costs must be equal; Pareto mean must be <= scalar-HNDT mean"
+            ),
+        }
+    ]
+    write_csv(out / "proposal_gain.csv", gain_rows)
 
     metadata = {
         "data_status": marker,
@@ -463,10 +550,16 @@ def main():
         "query_costs": str(query),
         "config": str(config),
         "n": model.n,
-        "hndt_optimum": h.optimum,
-        "hndt_max_rounds": root_rounds,
+        "proposal": PROPOSAL_NAME,
+        "pareto_hndt_worst_optimum": pareto.worst_optimum,
+        "pareto_hndt_mean_at_optimum": pareto.mean_at_worst_optimum,
+        "pareto_root_frontier_size": len(pareto.root_frontier),
+        "pareto_hndt_max_rounds": pareto.max_rounds,
+        "scalar_hndt_optimum": h.optimum,
+        "scalar_hndt_max_rounds": root_rounds,
         "oracle_best_fixed_g": best_g,
         "oracle_best_fixed_g_cost": best_g_cost,
+        "oracle_best_fixed_g_mean": best_g_mean,
         "paper_supported_adaptations": [
             row["strategy"] for row in literature_status if row["status"] == "executed"
         ],
@@ -478,8 +571,9 @@ def main():
         ],
         "round_budget": args.round_budget,
         "method_note": (
-            "HNDT remains the exact stop-or-split minimax solver. HNDT-RB is an exact "
-            "round-constrained extension; mechanism ablations restrict either split or stop actions."
+            "Pareto-HNDT computes the exact nondominated frontier of worst-case and uniform-mean "
+            "fault-path cost, then preserves the exact scalar HNDT minimax optimum while minimizing "
+            "mean cost among all minimax-optimal policies. No scalarization hyperparameter is used."
         ),
     }
     (out / "run_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")

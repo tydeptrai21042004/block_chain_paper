@@ -10,9 +10,12 @@ A completed run may contain:
 - `literature_baselines.csv` — provenance, fidelity, exclusions, run status;
 - `literature_individual_summary.csv` — individual paper-adaptation rows;
 - `literature_policy_groups.csv` — identical-policy grouping;
-- `mechanism_ablation.csv` — adaptive split vs adaptive stop;
+- `proposal_ablation.csv` — split/stop/secondary-objective mechanism isolation;
+- `mechanism_ablation.csv` — backward-compatible copy of the proposal ablation;
 - `round_budget_frontier.csv` — exact cost/interaction frontier;
-- `hndt_policy_audit.csv` — action alternatives and margins;
+- `pareto_frontier.csv` — exact worst/mean nondominated root frontier;
+- `proposal_gain.csv` — Pareto-HNDT versus scalar-HNDT non-regression/gain;
+- `hndt_scalar_policy_audit.csv` — scalar-HNDT action alternatives and margins;
 - `optional_policy_status.csv` — explicitly skipped unavailable strategies;
 - `policies/*.json`;
 - `heterogeneity_ablation.csv`;

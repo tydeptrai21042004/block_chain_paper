@@ -1,8 +1,9 @@
 # CellVG / HNDT artifact
 
-This repository contains the HNDT optimizer, exact constrained extension,
+This repository contains the **Pareto-HNDT** optimizer, the original scalar HNDT
+solver as an independent regression oracle, the exact constrained extension,
 state-chained CKB-VM verification benchmark, paper-grounded comparison-policy
-adapters, tests, experiment pipeline, and a manuscript snapshot.
+adapters, tests, experiment pipeline, and manuscript-integration notes.
 
 ## Start here
 
@@ -21,7 +22,8 @@ bash run_tests.sh
 
 The current suite validates:
 
-- exact unconstrained HNDT;
+- exact Pareto-HNDT frontier and minimax-preserving mean selector;
+- exact unconstrained scalar HNDT recovery;
 - exact round-budgeted HNDT;
 - mechanism-isolation ablations;
 - literature-adapter provenance/fidelity guards;
@@ -55,16 +57,16 @@ bash run_small_experiment.sh real
 
 The main run reports:
 
-- **HNDT**;
-- one deduplicated **prior-work midpoint/pinpoint family** representing the
-  comparable Arbitrum/opML-Phase-1/Agatha-chain policies;
-- adaptive-split-only and adaptive-stop-only mechanism ablations;
-- oracle best fixed-`g` plus requested fixed-`g` ablations;
-- optional reproduced ZK and direct-full-native strategies when the required
-  measurements exist.
+- **Pareto-HNDT (minimax-safe)** as the primary proposal;
+- scalar HNDT as a proposal ablation/regression oracle;
+- one deduplicated Arbitrum/opML/Agatha midpoint family;
+- Kirkpatrick--Klawe alphabetic-minimax and Hu--Tucker weighted-path objective baselines;
+- conditional zk-OPML operator-level ZK comparison when complete reproduced ZK costs exist;
+- adaptive-split, adaptive-stop, mean-first, fixed-`g`, heterogeneity, and round-budget ablations.
 
-Additional outputs include an exact round-budget frontier and an HNDT policy
-audit with the cost margin to the best alternative action.
+Additional outputs include the exact worst/mean Pareto frontier, a proposal-gain table,
+an exact scalar round-budget frontier, and a scalar-HNDT policy audit with the cost
+margin to the best alternative action.
 
 ## Scope statement
 
