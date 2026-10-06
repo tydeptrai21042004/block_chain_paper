@@ -64,6 +64,15 @@ def _midpoint_to_native_atomic(model: CostModel, *, label: str) -> Policy:
     return policy
 
 
+
+
+def rdoc_binary_search_policy(model: CostModel) -> Policy:
+    return _midpoint_to_native_atomic(model, label="RDoC binary-search dispute")
+
+
+def truebit_verification_game_policy(model: CostModel) -> Policy:
+    return _midpoint_to_native_atomic(model, label="TrueBit verification game")
+
 def arbitrum_ivp_policy(model: CostModel) -> Policy:
     return _midpoint_to_native_atomic(model, label="Arbitrum-IVP")
 
@@ -95,6 +104,30 @@ agatha_gpp_policy = agatha_gpp_chain_policy
 
 def literature_baselines() -> tuple[LiteratureBaselineSpec, ...]:
     return (
+        LiteratureBaselineSpec(
+            key="rdoc_binary_search",
+            display_name="RDoC binary-search dispute (common-trace adaptation)",
+            paper="Canetti, Riva, and Rothblum, Refereed Delegation of Computation",
+            year=2013,
+            url="https://doi.org/10.1016/j.ic.2013.03.003",
+            fidelity="binary-search localization adaptation",
+            comparable_component="Binary search over committed computation configurations to isolate disagreement.",
+            excluded_components="Original refereed-delegation protocol, cryptographic game, and server economics.",
+            builder=rdoc_binary_search_policy,
+            baseline_class="optimistic-system",
+        ),
+        LiteratureBaselineSpec(
+            key="truebit_verification_game",
+            display_name="TrueBit verification game (common-trace adaptation)",
+            paper="Teutsch and Reitwiessner, A Scalable Verification Solution for Blockchains",
+            year=2023,
+            url="https://doi.org/10.1142/9789811278631_0015",
+            fidelity="binary-search verification-game adaptation",
+            comparable_component="Binary localization of an incorrect execution to one disputed transition.",
+            excluded_components="Incentive layer, deposits, task market, and full TrueBit protocol economics.",
+            builder=truebit_verification_game_policy,
+            baseline_class="optimistic-system",
+        ),
         LiteratureBaselineSpec(
             key="arbitrum_ivp",
             display_name="Arbitrum-IVP (common-trace adaptation)",

@@ -1,0 +1,1333 @@
+--- /mnt/data/orig_repo/block_chain_paper-main/BASELINES.md	2026-10-04 08:25:43.000000000 +0000
++++ BASELINES.md	2026-10-06 08:49:37.369000756 +0000
+@@ -7,15 +7,19 @@
+ 
+ ## Optimistic-system localization family
+ 
+-The following three adapters reproduce only the comparable localization rule
++The following five adapters reproduce only the comparable localization rule
+ and then use the same measured native CKB-VM atomic adjudicator:
+ 
+-1. **Arbitrum-IVP** — Kalodner et al., USENIX Security 2018. Recursive
++1. **RDoC binary-search dispute** — Canetti, Riva, and Rothblum, 2013.
++   Binary-search localization over committed computation configurations.
++2. **TrueBit verification game** — Teutsch and Reitwießner. Binary search to
++   one disputed execution step.
++3. **Arbitrum-IVP** — Kalodner et al., USENIX Security 2018. Recursive
+    challenge bisection to one disputed transition.
+-2. **opML Phase-1** — Conway et al., 2024. Operator-level bisection; the
++4. **opML Phase-1** — Conway et al., 2024. Operator-level bisection; the
+    lower-level VM/microinstruction phase is excluded because this artifact does
+    not measure that trace.
+-3. **Agatha-GPP chain projection** — Zheng et al., 2021. GPP restricted to the
++5. **Agatha-GPP chain projection** — Zheng et al., 2021. GPP restricted to the
+    ordered-chain case; general-DAG/XCE machinery is excluded.
+ 
+ On the present ordered trace these can induce the same midpoint tree, so the
+@@ -24,8 +28,8 @@
+ 
+ ## Classical optimal-tree baselines
+ 
+-Two additional paper-backed baselines test whether Pareto-HNDT gains are merely
+-an artifact of comparing against naive midpoint search.
++Three additional paper-backed baselines test whether Pareto-HNDT gains are merely
++an artifact of comparing against naive midpoint search or unrestricted tree height.
+ 
+ ### Alphabetic Minimax Tree objective adaptation
+ 
+@@ -55,6 +59,17 @@
+ invented. An independent interval DP is used rather than copying the historical
+ construction algorithm.
+ 
++
++### Height-limited alphabetic mean objective adaptation
++
++**Source:** L. L. Larmore and T. M. Przytycka, *A Fast Algorithm for Optimum
++Height-Limited Alphabetic Binary Trees*, SIAM Journal on Computing 23(6), 1994,
++DOI 10.1137/S0097539792231167.
++
++The repository independently solves the corresponding fixed-leaf weighted-path
++objective under an explicit maximum split depth.  This is useful when comparing
++expected dispute cost under the same interaction-depth budget.
++
+ ## zk-OPML operator-dispute baseline
+ 
+ **Source:** Vid Keršič and Muhamed Turkanović, *zk-OPML: Using zero-knowledge
+@@ -81,9 +96,11 @@
+ The experiment also reports:
+ 
+ - scalar HNDT (minimax only) — removes the new secondary objective;
+-- adaptive split + atomic stop — removes adaptive stopping;
+-- midpoint split + adaptive stop — removes adaptive split placement;
+-- midpoint atomic literature family — removes both adaptive mechanisms;
++- **Pareto adaptive split + atomic stop** — removes adaptive stopping while keeping the same minimax-safe secondary objective;
++- **Pareto midpoint split + adaptive stop** — removes adaptive split placement while keeping the same objective;
++- **Pareto midpoint + atomic stop** — removes both mechanisms while keeping the same objective;
++- legacy scalar versions of the same restrictions for backward comparison;
++- midpoint atomic literature family — paper-backed binary-search localization;
+ - Pareto mean-first endpoint — shows the worst/mean trade-off if minimax safety
+   is deliberately relaxed;
+ - oracle best fixed-`g` and requested fixed-`g` policies;
+@@ -92,3 +109,12 @@
+ The key machine-readable outputs are `summary.csv`, `proposal_ablation.csv`,
+ `pareto_frontier.csv`, `literature_individual_summary.csv`, and
+ `literature_baselines.csv`.
++
++
++## Exact arithmetic and compositional-theory check
++
++Pareto objective pairs are compared with exact rational arithmetic; no epsilon is
++used for equality or dominance.  Pareto pruning uses a sorted two-dimensional
++antichain scan.  `python experiments/run_theory_checks.py` exports the small
++ancestor-slack counterexample showing why retaining only the locally minimax
++child label is not compositionally sufficient.
+--- /mnt/data/orig_repo/block_chain_paper-main/README.md	2026-10-04 08:25:43.000000000 +0000
++++ README.md	2026-10-06 08:49:37.369119816 +0000
+@@ -41,7 +41,8 @@
+ 
+ The current suite validates:
+ 
+-- exact Pareto-HNDT frontier and minimax-preserving mean selector;
++- exact-rational Pareto-HNDT frontier and minimax-preserving mean selector;
++- sorted exact 2-D antichain pruning and ancestor-slack regression checks;
+ - exact unconstrained scalar HNDT recovery;
+ - exact round-budgeted HNDT;
+ - mechanism-isolation ablations;
+@@ -81,10 +82,12 @@
+ 
+ - **Pareto-HNDT (minimax-safe)** as the primary proposal;
+ - scalar HNDT as a proposal ablation/regression oracle;
+-- one deduplicated Arbitrum/opML/Agatha midpoint family;
+-- Kirkpatrick--Klawe alphabetic-minimax and Hu--Tucker weighted-path objective baselines;
++- one deduplicated RDoC/TrueBit/Arbitrum/opML/Agatha midpoint family;
++- Kirkpatrick--Klawe alphabetic-minimax, Hu--Tucker weighted-path, and
++  Larmore--Przytycka height-limited alphabetic objective baselines;
+ - conditional zk-OPML operator-level ZK comparison when complete reproduced ZK costs exist;
+-- adaptive-split, adaptive-stop, mean-first, fixed-`g`, heterogeneity, and round-budget ablations.
++- fair Pareto adaptive-split/adaptive-stop factorial ablations, legacy scalar
++  mechanism ablations, mean-first, fixed-`g`, heterogeneity, and round-budget ablations.
+ 
+ Additional outputs include the exact worst/mean Pareto frontier, a proposal-gain table,
+ an exact scalar round-budget frontier, and a scalar-HNDT policy audit with the cost
+@@ -101,3 +104,14 @@
+ The benchmark still does not claim complete transaction cost: witness syscalls,
+ Cell serialization, and production model/economic plumbing must be measured
+ separately.
++
++
++## JLAMP-oriented theory artifact
++
++```bash
++python experiments/run_theory_checks.py
++```
++
++This emits an exact ancestor-bottleneck/slack counterexample demonstrating that
++a locally lexicographic minimax summary can lose a globally better expected-cost
++policy while leaving the parent's worst-case objective unchanged.
+--- /mnt/data/orig_repo/block_chain_paper-main/experiments/hndt/pareto.py	2026-10-04 08:25:43.000000000 +0000
++++ experiments/hndt/pareto.py	2026-10-06 08:45:07.157479692 +0000
+@@ -2,37 +2,39 @@
+ 
+ """Exact Pareto extension of HNDT.
+ 
+-The original HNDT dynamic program minimizes only the adversarial worst-case
+-fault-path cost.  This module keeps the same stop-or-split action space but
+-computes the nondominated frontier of
+-
+-    (worst-case fault-path cost, weighted mean fault-path cost).
+-
+-No scalarization coefficient is introduced.  The primary proposal is selected
+-lexicographically: first preserve the exact HNDT minimax optimum, then minimize
+-weighted mean cost among *all* minimax-optimal policies.
++The stop-or-split action space is unchanged.  The solver computes the exact
++nondominated frontier of two objectives:
+ 
+-For normalized fault weights p_t and interval mass P_ij = sum_{t=i}^{j-1} p_t,
+-terminal settlement with cost A contributes
++    (worst-case fault-path cost, weighted expected-cost contribution).
++
++All Pareto comparisons use rational arithmetic.  No epsilon/tolerance is used
++for scientific objective equality or dominance.  Public reporting properties
++remain floats for compatibility with the existing CSV/plotting pipeline.
++
++For normalized fault weights p_t and interval mass P_ij, terminal settlement
++with cost A contributes
+ 
+     (A, P_ij A),
+ 
+-while a split with query cost q composes child labels (W_L, M_L) and
+-(W_R, M_R) as
++and a split with query cost q composes child labels (W_L, M_L), (W_R, M_R) as
+ 
+     (q + max(W_L, W_R), P_ij q + M_L + M_R).
+ 
+-Dominated labels can be discarded exactly because both composition operators
+-are monotone in each child objective.
++The second coordinate is deliberately an *unnormalized expectation mass* on a
++subinterval.  At the root P_0n = 1, so it equals the ordinary expected cost.
+ """
+ 
+ from dataclasses import dataclass
+-from math import inf, isfinite, isnan
+-from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple
++from fractions import Fraction
++from math import isnan
++from typing import Callable, Dict, Iterable, Optional, Sequence, Tuple
+ 
+ from .core import Action, CostModel
++from .exact import as_fraction, normalize_weight_fractions
+ 
+ Interval = Tuple[int, int]
++SplitFilter = Callable[[int, int, int], bool]
++TerminalFilter = Callable[[int, int, str], bool]
+ 
+ 
+ @dataclass(frozen=True)
+@@ -40,14 +42,20 @@
+     """One achievable nondominated objective pair for an interval."""
+ 
+     interval: Interval
+-    worst_cost: float
+-    mean_cost: float
++    worst_exact: Fraction
++    mean_exact: Fraction
+     max_rounds: int
+     action: Action
+     left: Optional["ParetoLabel"] = None
+     right: Optional["ParetoLabel"] = None
+ 
++    @property
++    def worst_cost(self) -> float:
++        return float(self.worst_exact)
+ 
++    @property
++    def mean_cost(self) -> float:
++        return float(self.mean_exact)
+ 
+ 
+ @dataclass
+@@ -75,6 +83,7 @@
+ 
+     n: int
+     weights: Tuple[float, ...]
++    exact_weights: Tuple[Fraction, ...]
+     frontier: Dict[Interval, Tuple[ParetoLabel, ...]]
+     selected: ParetoLabel
+     policy: Dict[Interval, Action]
+@@ -85,10 +94,18 @@
+         return self.selected.worst_cost
+ 
+     @property
++    def worst_optimum_exact(self) -> Fraction:
++        return self.selected.worst_exact
++
++    @property
+     def mean_at_worst_optimum(self) -> float:
+         return self.selected.mean_cost
+ 
+     @property
++    def mean_at_worst_optimum_exact(self) -> Fraction:
++        return self.selected.mean_exact
++
++    @property
+     def max_rounds(self) -> int:
+         return self.selected.max_rounds
+ 
+@@ -97,33 +114,13 @@
+         return self.frontier[(0, self.n)]
+ 
+ 
+-def normalize_fault_weights(n: int, weights: Optional[Sequence[float]] = None) -> Tuple[float, ...]:
+-    """Validate and normalize nonnegative fault weights to sum to one.
++def normalize_fault_weights(
++    n: int,
++    weights: Optional[Sequence[float]] = None,
++) -> Tuple[float, ...]:
++    """Backward-compatible float view of the exactly normalized weights."""
+ 
+-    ``None`` means a uniform distribution, so the second objective is the
+-    arithmetic mean over all possible single-fault positions.  This is the
+-    manuscript's distribution-free diagnostic: every position receives equal
+-    weight and no learned fault model is required.
+-    """
+-
+-    if not isinstance(n, int) or isinstance(n, bool) or n <= 0:
+-        raise ValueError("n must be a positive integer")
+-    if weights is None:
+-        return tuple(1.0 / n for _ in range(n))
+-    if len(weights) != n:
+-        raise ValueError(f"fault weights must have length {n}, got {len(weights)}")
+-    values = []
+-    for index, raw in enumerate(weights):
+-        value = float(raw)
+-        if isnan(value) or not isfinite(value) or value < 0:
+-            raise ValueError(
+-                f"fault weight at position {index} must be finite and non-negative"
+-            )
+-        values.append(value)
+-    total = sum(values)
+-    if total <= 0:
+-        raise ValueError("at least one fault weight must be positive")
+-    return tuple(v / total for v in values)
++    return tuple(float(x) for x in normalize_weight_fractions(n, weights))
+ 
+ 
+ def _action_tie_key(label: ParetoLabel) -> tuple:
+@@ -141,84 +138,74 @@
+         )
+     split = -1 if act.split is None else int(act.split)
+     i, j = label.interval
+-    midpoint = (i + j) / 2.0
+-    return (label.max_rounds, 1, 2, "", abs(split - midpoint), split)
++    # Compare twice the distance to the midpoint using integers.
++    midpoint_distance2 = abs(2 * split - (i + j))
++    return (label.max_rounds, 1, 2, "", midpoint_distance2, split)
++
++
++def _equivalent(a: ParetoLabel, b: ParetoLabel) -> bool:
++    return a.worst_exact == b.worst_exact and a.mean_exact == b.mean_exact
+ 
+ 
+-def _equivalent(a: ParetoLabel, b: ParetoLabel, tol: float) -> bool:
++def _dominates(a: ParetoLabel, b: ParetoLabel) -> bool:
+     return (
+-        abs(a.worst_cost - b.worst_cost) <= tol
+-        and abs(a.mean_cost - b.mean_cost) <= tol
++        a.worst_exact <= b.worst_exact
++        and a.mean_exact <= b.mean_exact
++        and (a.worst_exact < b.worst_exact or a.mean_exact < b.mean_exact)
+     )
+ 
+ 
+-def _dominates(a: ParetoLabel, b: ParetoLabel, tol: float) -> bool:
+-    no_worse = (
+-        a.worst_cost <= b.worst_cost + tol
+-        and a.mean_cost <= b.mean_cost + tol
+-    )
+-    strictly_better = (
+-        a.worst_cost < b.worst_cost - tol
+-        or a.mean_cost < b.mean_cost - tol
+-    )
+-    return no_worse and strictly_better
++def _validate_legacy_tolerance(tie_tolerance: float) -> None:
++    # Retain the old argument so external scripts do not break, but objective
++    # comparisons are exact and do not use this tolerance.
++    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
++        raise ValueError("tie_tolerance must be non-negative and not NaN")
+ 
+ 
+ def _prune_nondominated_with_counts(
+     labels: Iterable[ParetoLabel],
+-    tie_tolerance: float = 1e-12,
++    tie_tolerance: float = 0.0,
+ ) -> tuple[Tuple[ParetoLabel, ...], int, int, int]:
+-    """Return frontier plus duplicate/dominance counts for diagnostics."""
++    """Exact O(C log C) 2-D Pareto pruning for ``C`` candidate labels.
+ 
+-    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+-        raise ValueError("tie_tolerance must be non-negative and not NaN")
++    Candidates are sorted by increasing worst-case cost and then expected-cost
++    mass.  Exact duplicate objective pairs are collapsed by tertiary policy
++    preference.  A single scan then retains a label iff its second coordinate
++    is strictly smaller than every earlier label's second coordinate.
++    """
+ 
+-    finite = [
+-        x
+-        for x in labels
+-        if isfinite(x.worst_cost) and isfinite(x.mean_cost)
+-    ]
+-    finite.sort(key=lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x)))
++    _validate_legacy_tolerance(tie_tolerance)
++    ordered = sorted(
++        labels,
++        key=lambda x: (x.worst_exact, x.mean_exact, _action_tie_key(x)),
++    )
++    finite_candidates = len(ordered)
+ 
+     unique: list[ParetoLabel] = []
+-    for label in finite:
+-        duplicate_index = next(
+-            (idx for idx, kept in enumerate(unique) if _equivalent(label, kept, tie_tolerance)),
+-            None,
+-        )
+-        if duplicate_index is None:
++    for label in ordered:
++        if unique and _equivalent(label, unique[-1]):
++            if _action_tie_key(label) < _action_tie_key(unique[-1]):
++                unique[-1] = label
++        else:
+             unique.append(label)
+-        elif _action_tie_key(label) < _action_tie_key(unique[duplicate_index]):
+-            unique[duplicate_index] = label
+ 
+-    frontier = []
++    frontier: list[ParetoLabel] = []
++    best_mean: Fraction | None = None
+     for label in unique:
+-        if any(
+-            other is not label and _dominates(other, label, tie_tolerance)
+-            for other in unique
+-        ):
+-            continue
+-        frontier.append(label)
+-
+-    frontier.sort(key=lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x)))
+-    return (
+-        tuple(frontier),
+-        len(finite) - len(unique),
+-        len(unique) - len(frontier),
+-        len(finite),
+-    )
++        if best_mean is None or label.mean_exact < best_mean:
++            frontier.append(label)
++            best_mean = label.mean_exact
++
++    duplicate_pruned = finite_candidates - len(unique)
++    dominated_pruned = len(unique) - len(frontier)
++    return tuple(frontier), duplicate_pruned, dominated_pruned, finite_candidates
+ 
+ 
+ def prune_nondominated(
+     labels: Iterable[ParetoLabel],
+-    tie_tolerance: float = 1e-12,
++    tie_tolerance: float = 0.0,
+ ) -> Tuple[ParetoLabel, ...]:
+-    """Return a deterministic exact 2-D nondominated frontier.
+-
+-    Equal objective pairs are collapsed using only tertiary policy preferences
+-    (fewer rounds, then deterministic action ordering).  Dominance itself is
+-    based solely on the two scientific objectives.
+-    """
++    """Return a deterministic exact 2-D nondominated frontier."""
+ 
+     frontier, _, _, _ = _prune_nondominated_with_counts(labels, tie_tolerance)
+     return frontier
+@@ -252,19 +239,14 @@
+     *,
+     mode: str = "minimax_safe",
+ ) -> ParetoLabel:
+-    """Select one deterministic policy from a Pareto frontier.
+-
+-    ``minimax_safe`` minimizes worst-case cost first and mean cost second.
+-    ``mean_first`` is an ablation endpoint that minimizes mean cost first and
+-    worst-case cost second.
+-    """
++    """Select one deterministic policy from a Pareto frontier."""
+ 
+     if not labels:
+         raise ValueError("cannot select from an empty Pareto frontier")
+     if mode == "minimax_safe":
+-        key = lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x))
++        key = lambda x: (x.worst_exact, x.mean_exact, _action_tie_key(x))
+     elif mode == "mean_first":
+-        key = lambda x: (x.mean_cost, x.worst_cost, _action_tie_key(x))
++        key = lambda x: (x.mean_exact, x.worst_exact, _action_tie_key(x))
+     else:
+         raise ValueError("mode must be 'minimax_safe' or 'mean_first'")
+     return min(labels, key=key)
+@@ -273,26 +255,32 @@
+ def solve_pareto_hndt(
+     model: CostModel,
+     fault_weights: Optional[Sequence[float]] = None,
+-    tie_tolerance: float = 1e-12,
++    tie_tolerance: float = 0.0,
+     collect_stats: bool = False,
++    *,
++    split_filter: Optional[SplitFilter] = None,
++    terminal_filter: Optional[TerminalFilter] = None,
+ ) -> ParetoHNDTResult:
+-    """Compute the exact Pareto frontier for HNDT's stop-or-split strategy space.
++    """Compute the exact Pareto frontier for a stop-or-split strategy space.
+ 
+-    The straightforward algorithm is output-sensitive.  If ``P`` is the
+-    largest interval-frontier size, candidate generation is O(n^3 P^2) in the
+-    worst case before dominance pruning; storage is O(n^2 P).
++    ``split_filter`` and ``terminal_filter`` are restriction hooks used only by
++    fair mechanism ablations.  The proposal leaves both unset and therefore
++    searches the complete HNDT action space.
++
++    If ``P`` is the largest interval-frontier size, candidate generation remains
++    O(n^3 P^2).  Each interval frontier is pruned in O(C log C) time for ``C``
++    generated candidates, rather than by a quadratic all-pairs dominance scan.
+     """
+ 
+-    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+-        raise ValueError("tie_tolerance must be non-negative and not NaN")
++    _validate_legacy_tolerance(tie_tolerance)
+ 
+     n = model.n
+-    weights = normalize_fault_weights(n, fault_weights)
+-    prefix = [0.0]
+-    for weight in weights:
++    exact_weights = normalize_weight_fractions(n, fault_weights)
++    prefix = [Fraction(0, 1)]
++    for weight in exact_weights:
+         prefix.append(prefix[-1] + weight)
+ 
+-    def mass(i: int, j: int) -> float:
++    def mass(i: int, j: int) -> Fraction:
+         return prefix[j] - prefix[i]
+ 
+     frontier: Dict[Interval, Tuple[ParetoLabel, ...]] = {}
+@@ -305,14 +293,17 @@
+             interval_mass = mass(i, j)
+ 
+             for backend, raw_cost in model.backends(i, j).items():
+-                cost = float(raw_cost)
+-                if not isfinite(cost):
++                if terminal_filter is not None and not terminal_filter(i, j, backend):
++                    continue
++                try:
++                    cost = as_fraction(raw_cost)
++                except ValueError:
+                     continue
+                 candidates.append(
+                     ParetoLabel(
+                         interval=(i, j),
+-                        worst_cost=cost,
+-                        mean_cost=interval_mass * cost,
++                        worst_exact=cost,
++                        mean_exact=interval_mass * cost,
+                         max_rounds=0,
+                         action=Action.settle(backend),
+                     )
+@@ -320,8 +311,11 @@
+ 
+             if length > 1:
+                 for k in range(i + 1, j):
+-                    q = model.checked_query_cost(i, j, k)
+-                    if not isfinite(q):
++                    if split_filter is not None and not split_filter(i, j, k):
++                        continue
++                    try:
++                        q = as_fraction(model.checked_query_cost(i, j, k))
++                    except ValueError:
+                         continue
+                     left_frontier = frontier.get((i, k), ())
+                     right_frontier = frontier.get((k, j), ())
+@@ -330,11 +324,11 @@
+                             candidates.append(
+                                 ParetoLabel(
+                                     interval=(i, j),
+-                                    worst_cost=q + max(left.worst_cost, right.worst_cost),
+-                                    mean_cost=(
++                                    worst_exact=q + max(left.worst_exact, right.worst_exact),
++                                    mean_exact=(
+                                         interval_mass * q
+-                                        + left.mean_cost
+-                                        + right.mean_cost
++                                        + left.mean_exact
++                                        + right.mean_exact
+                                     ),
+                                     max_rounds=1 + max(left.max_rounds, right.max_rounds),
+                                     action=Action.split_at(k),
+@@ -343,8 +337,8 @@
+                                 )
+                             )
+ 
+-            current, duplicate_pruned, dominated_pruned, finite_candidates = _prune_nondominated_with_counts(
+-                candidates, tie_tolerance=tie_tolerance
++            current, duplicate_pruned, dominated_pruned, finite_candidates = (
++                _prune_nondominated_with_counts(candidates, tie_tolerance=tie_tolerance)
+             )
+             if stats is not None:
+                 stats.intervals += 1
+@@ -359,7 +353,7 @@
+             if not current:
+                 raise ValueError(
+                     f"Interval [{i},{j}] is unsolvable in Pareto-HNDT: no finite "
+-                    "settlement and no finite split with solvable children"
++                    "settlement and no allowed finite split with solvable children"
+                 )
+             frontier[(i, j)] = current
+ 
+@@ -368,7 +362,8 @@
+     policy = reconstruct_policy(selected)
+     return ParetoHNDTResult(
+         n=n,
+-        weights=weights,
++        weights=tuple(float(x) for x in exact_weights),
++        exact_weights=exact_weights,
+         frontier=frontier,
+         selected=selected,
+         policy=policy,
+@@ -396,6 +391,8 @@
+                 "frontier_id": index,
+                 "worst_case_cost": label.worst_cost,
+                 "mean_cost": label.mean_cost,
++                "worst_case_cost_exact": str(label.worst_exact),
++                "mean_cost_exact": str(label.mean_exact),
+                 "max_rounds": label.max_rounds,
+                 "root_action": action.kind,
+                 "root_backend": action.backend or "",
+--- /mnt/data/orig_repo/block_chain_paper-main/experiments/hndt/baselines.py	2026-10-04 08:25:43.000000000 +0000
++++ experiments/hndt/baselines.py	2026-10-06 08:45:38.946868327 +0000
+@@ -327,3 +327,171 @@
+ 
+     constant_query_cost(model)
+     return optimal_mean_atomic_policy(model, fault_weights=fault_weights)
++
++
++def pareto_atomic_policy(model: CostModel, fault_weights=None) -> Dict[Interval, Action]:
++    """Fair ablation: adaptive split + forced atomic stop + Pareto refinement.
++
++    Unlike :func:`optimal_split_atomic_policy`, this keeps the proposal's exact
++    minimax-safe secondary expected-cost objective.  Therefore the comparison
++    isolates adaptive stopping rather than conflating stopping with objective
++    selection.
++    """
++
++    from .pareto import solve_pareto_hndt
++
++    result = solve_pareto_hndt(
++        model,
++        fault_weights=fault_weights,
++        terminal_filter=lambda i, j, backend: j - i == 1,
++    )
++    return result.policy
++
++
++def pareto_midpoint_adaptive_stop_policy(
++    model: CostModel,
++    fault_weights=None,
++) -> Dict[Interval, Action]:
++    """Fair ablation: midpoint-only split + adaptive stop + Pareto refinement."""
++
++    from .pareto import solve_pareto_hndt
++
++    result = solve_pareto_hndt(
++        model,
++        fault_weights=fault_weights,
++        split_filter=lambda i, j, k: k == _midpoint(i, j),
++    )
++    return result.policy
++
++
++def pareto_midpoint_atomic_policy(
++    model: CostModel,
++    fault_weights=None,
++) -> Dict[Interval, Action]:
++    """Fully restricted factorial endpoint with the same Pareto objective."""
++
++    from .pareto import solve_pareto_hndt
++
++    result = solve_pareto_hndt(
++        model,
++        fault_weights=fault_weights,
++        split_filter=lambda i, j, k: k == _midpoint(i, j),
++        terminal_filter=lambda i, j, backend: j - i == 1,
++    )
++    return result.policy
++
++
++def height_limited_mean_atomic_policy(
++    model: CostModel,
++    max_rounds: int,
++    fault_weights=None,
++) -> Dict[Interval, Action]:
++    """Height-limited optimal alphabetic mean tree objective adaptation.
++
++    This is the fixed-leaf, constant-query-cost objective studied by the
++    height-limited alphabetic-tree literature (e.g. Larmore--Przytycka), solved
++    here by an independent exact interval DP.  ``max_rounds`` is the maximum
++    root-to-leaf number of split queries.
++    """
++
++    from fractions import Fraction
++    from .exact import as_fraction, normalize_weight_fractions
++
++    if not isinstance(max_rounds, int) or isinstance(max_rounds, bool) or max_rounds < 0:
++        raise ValueError("max_rounds must be a non-negative integer")
++    constant_query_cost(model)
++
++    weights = normalize_weight_fractions(model.n, fault_weights)
++    prefix = [Fraction(0, 1)]
++    for weight in weights:
++        prefix.append(prefix[-1] + weight)
++
++    def mass(i: int, j: int) -> Fraction:
++        return prefix[j] - prefix[i]
++
++    # DP state: (budget, i, j) -> exact weighted contribution / action / rounds.
++    values: dict[tuple[int, int, int], Fraction | None] = {}
++    actions: dict[tuple[int, int, int], Action | None] = {}
++    rounds_used: dict[tuple[int, int, int], int] = {}
++
++    for budget in range(max_rounds + 1):
++        for length in range(1, model.n + 1):
++            for i in range(0, model.n - length + 1):
++                j = i + length
++                key = (budget, i, j)
++
++                if length == 1:
++                    cost, backend = model.best_terminal(i, j)
++                    if backend is None or not isfinite(cost):
++                        values[key] = None
++                        actions[key] = None
++                        rounds_used[key] = 10**9
++                    else:
++                        values[key] = mass(i, j) * as_fraction(cost)
++                        actions[key] = Action.settle(backend)
++                        rounds_used[key] = 0
++                    continue
++
++                if budget == 0:
++                    values[key] = None
++                    actions[key] = None
++                    rounds_used[key] = 10**9
++                    continue
++
++                best_value: Fraction | None = None
++                best_action: Action | None = None
++                best_rounds = 10**9
++                best_tie = None
++                for k in range(i + 1, j):
++                    left = values[(budget - 1, i, k)]
++                    right = values[(budget - 1, k, j)]
++                    if left is None or right is None:
++                        continue
++                    try:
++                        q = as_fraction(model.checked_query_cost(i, j, k))
++                    except ValueError:
++                        continue
++                    candidate = mass(i, j) * q + left + right
++                    candidate_rounds = 1 + max(
++                        rounds_used[(budget - 1, i, k)],
++                        rounds_used[(budget - 1, k, j)],
++                    )
++                    tie = (candidate_rounds, abs(2 * k - (i + j)), k)
++                    if best_value is None or candidate < best_value or (
++                        candidate == best_value and (best_tie is None or tie < best_tie)
++                    ):
++                        best_value = candidate
++                        best_action = Action.split_at(k)
++                        best_rounds = candidate_rounds
++                        best_tie = tie
++
++                values[key] = best_value
++                actions[key] = best_action
++                rounds_used[key] = best_rounds
++
++    root_key = (max_rounds, 0, model.n)
++    if values[root_key] is None or actions[root_key] is None:
++        raise ValueError(
++            f"No height-limited atomic alphabetic tree is feasible for n={model.n} "
++            f"with max_rounds={max_rounds}"
++        )
++
++    policy: Dict[Interval, Action] = {}
++    stack = [(0, model.n, max_rounds)]
++    while stack:
++        i, j, budget = stack.pop()
++        act = actions[(budget, i, j)]
++        if act is None:
++            raise AssertionError("reachable height-limited state is infeasible")
++        previous = policy.get((i, j))
++        if previous is not None and previous != act:
++            raise AssertionError("interval reached with inconsistent height-limited action")
++        policy[(i, j)] = act
++        if act.kind == "split":
++            if budget == 0 or act.split is None:
++                raise AssertionError("invalid split in zero-budget height-limited state")
++            k = int(act.split)
++            stack.append((i, k, budget - 1))
++            stack.append((k, j, budget - 1))
++
++    return policy
+--- /mnt/data/orig_repo/block_chain_paper-main/experiments/hndt/literature_baselines.py	2026-10-04 08:25:43.000000000 +0000
++++ experiments/hndt/literature_baselines.py	2026-10-06 08:45:51.705390554 +0000
+@@ -64,6 +64,15 @@
+     return policy
+ 
+ 
++
++
++def rdoc_binary_search_policy(model: CostModel) -> Policy:
++    return _midpoint_to_native_atomic(model, label="RDoC binary-search dispute")
++
++
++def truebit_verification_game_policy(model: CostModel) -> Policy:
++    return _midpoint_to_native_atomic(model, label="TrueBit verification game")
++
+ def arbitrum_ivp_policy(model: CostModel) -> Policy:
+     return _midpoint_to_native_atomic(model, label="Arbitrum-IVP")
+ 
+@@ -96,6 +105,30 @@
+ def literature_baselines() -> tuple[LiteratureBaselineSpec, ...]:
+     return (
+         LiteratureBaselineSpec(
++            key="rdoc_binary_search",
++            display_name="RDoC binary-search dispute (common-trace adaptation)",
++            paper="Canetti, Riva, and Rothblum, Refereed Delegation of Computation",
++            year=2013,
++            url="https://doi.org/10.1016/j.ic.2013.03.003",
++            fidelity="binary-search localization adaptation",
++            comparable_component="Binary search over committed computation configurations to isolate disagreement.",
++            excluded_components="Original refereed-delegation protocol, cryptographic game, and server economics.",
++            builder=rdoc_binary_search_policy,
++            baseline_class="optimistic-system",
++        ),
++        LiteratureBaselineSpec(
++            key="truebit_verification_game",
++            display_name="TrueBit verification game (common-trace adaptation)",
++            paper="Teutsch and Reitwiessner, A Scalable Verification Solution for Blockchains",
++            year=2023,
++            url="https://doi.org/10.1142/9789811278631_0015",
++            fidelity="binary-search verification-game adaptation",
++            comparable_component="Binary localization of an incorrect execution to one disputed transition.",
++            excluded_components="Incentive layer, deposits, task market, and full TrueBit protocol economics.",
++            builder=truebit_verification_game_policy,
++            baseline_class="optimistic-system",
++        ),
++        LiteratureBaselineSpec(
+             key="arbitrum_ivp",
+             display_name="Arbitrum-IVP (common-trace adaptation)",
+             paper="Kalodner et al., Arbitrum: Scalable, Private Smart Contracts",
+--- /mnt/data/orig_repo/block_chain_paper-main/experiments/run_experiment.py	2026-10-04 08:25:43.000000000 +0000
++++ experiments/run_experiment.py	2026-10-06 08:47:49.858031697 +0000
+@@ -15,8 +15,12 @@
+ from hndt.baselines import (
+     direct_native_policy,
+     fixed_g_policy,
++    height_limited_mean_atomic_policy,
+     midpoint_adaptive_stop_policy,
+     optimal_split_atomic_policy,
++    pareto_atomic_policy,
++    pareto_midpoint_adaptive_stop_policy,
++    pareto_midpoint_atomic_policy,
+ )
+ from hndt.core import CostModel, solve_hndt, solve_hndt_round_budget
+ from hndt.evaluate import evaluate_policy, summarize, weighted_mean_cost
+@@ -82,6 +86,15 @@
+             "split rounds. The Pareto proposal itself remains unconstrained."
+         ),
+     )
++    p.add_argument(
++        "--alphabetic-height-limit",
++        type=int,
++        default=4,
++        help=(
++            "Maximum split depth for the Larmore-Przytycka-style height-limited "
++            "alphabetic mean baseline. Set negative to disable."
++        ),
++    )
+     return p.parse_args()
+ 
+ 
+@@ -362,13 +375,49 @@
+         policies[group["name"]] = group["policy"]
+         categories[group["name"]] = "paper-supported baseline"
+ 
+-    # Mechanism-isolation ablations around the same action space.
+-    atomic_name = "Ablation: adaptive split + atomic stop"
+-    midpoint_stop_name = "Ablation: midpoint split + adaptive stop"
++    # Mechanism-isolation ablations.  The Pareto variants preserve the exact
++    # minimax-safe secondary objective so split/stopping effects are not
++    # confounded with objective selection.  Scalar variants are retained for
++    # backward compatibility with the previous manuscript tables.
++    pareto_atomic_name = "Ablation: Pareto adaptive split + atomic stop"
++    pareto_midpoint_stop_name = "Ablation: Pareto midpoint split + adaptive stop"
++    pareto_midpoint_atomic_name = "Ablation: Pareto midpoint split + atomic stop"
++    policies[pareto_atomic_name] = pareto_atomic_policy(model, fault_weights=fault_weights)
++    categories[pareto_atomic_name] = "fair Pareto mechanism ablation"
++    policies[pareto_midpoint_stop_name] = pareto_midpoint_adaptive_stop_policy(
++        model, fault_weights=fault_weights
++    )
++    categories[pareto_midpoint_stop_name] = "fair Pareto mechanism ablation"
++    policies[pareto_midpoint_atomic_name] = pareto_midpoint_atomic_policy(
++        model, fault_weights=fault_weights
++    )
++    categories[pareto_midpoint_atomic_name] = "fair Pareto mechanism ablation"
++
++    atomic_name = "Ablation: scalar adaptive split + atomic stop"
++    midpoint_stop_name = "Ablation: scalar midpoint split + adaptive stop"
+     policies[atomic_name] = optimal_split_atomic_policy(model)
+-    categories[atomic_name] = "mechanism ablation"
++    categories[atomic_name] = "legacy scalar mechanism ablation"
+     policies[midpoint_stop_name] = midpoint_adaptive_stop_policy(model)
+-    categories[midpoint_stop_name] = "mechanism ablation"
++    categories[midpoint_stop_name] = "legacy scalar mechanism ablation"
++
++    if args.alphabetic_height_limit is not None and args.alphabetic_height_limit >= 0:
++        height_name = (
++            "Height-limited alphabetic mean "
++            f"(Larmore-Przytycka objective, L={args.alphabetic_height_limit})"
++        )
++        try:
++            policies[height_name] = height_limited_mean_atomic_policy(
++                model,
++                max_rounds=args.alphabetic_height_limit,
++                fault_weights=fault_weights,
++            )
++            categories[height_name] = "paper-supported classical-tree baseline"
++        except ValueError as exc:
++            height_name = None
++            height_error = str(exc)
++    else:
++        height_name = None
++        height_error = "disabled"
+ 
+     # Strongest globally fixed granularity under oracle access to this table.
+     best_g_cost, best_g_mean, best_g, best_g_policy, _ = choose_best_fixed_g(model, fault_weights=fault_weights)
+@@ -470,16 +519,49 @@
+     write_csv(out / "literature_policy_groups.csv", group_rows)
+ 
+     provenance = provenance_rows()
++    if args.alphabetic_height_limit is not None and args.alphabetic_height_limit >= 0:
++        provenance.append({
++            "strategy": (
++                "Height-limited alphabetic mean "
++                f"(Larmore-Przytycka objective, L={args.alphabetic_height_limit})"
++            ),
++            "key": "larmore_przytycka_height_limited_mean",
++            "baseline_class": "classical-tree-theory",
++            "paper": (
++                "Larmore and Przytycka, A Fast Algorithm for Optimum Height-Limited "
++                "Alphabetic Binary Trees"
++            ),
++            "year": 1994,
++            "url": "https://doi.org/10.1137/S0097539792231167",
++            "fidelity": "exact objective adaptation under forced atomic leaves and constant query cost",
++            "comparable_component": (
++                "Ordered fixed-leaf weighted-path-length minimization subject to an explicit "
++                "maximum tree height."
++            ),
++            "excluded_components": (
++                "Historical implementation algorithm; this repository uses an independent exact "
++                "interval DP for the same constrained objective."
++            ),
++            "common_environment": (
++                "same ordered trace, same measured atomic terminal costs, same corrected Merkle "
++                "query cost, same fault weights"
++            ),
++            "claim_guard": "objective adaptation; not a reproduction of the historical implementation",
++            "status": "executed" if height_name is not None else "skipped",
++            "status_reason": "" if height_name is not None else height_error,
++            "main_summary_group": height_name or "",
++        })
+     status_by_name = {row["strategy"]: row for row in literature_status}
+     group_by_member = {}
+     for group in literature_groups:
+         for spec in group["members"]:
+             group_by_member[spec.display_name] = group["name"]
+     for row in provenance:
+-        status = status_by_name[row["strategy"]]
+-        row["status"] = status["status"]
+-        row["status_reason"] = status["reason"]
+-        row["main_summary_group"] = group_by_member.get(row["strategy"], "")
++        status = status_by_name.get(row["strategy"])
++        if status is not None:
++            row["status"] = status["status"]
++            row["status_reason"] = status["reason"]
++            row["main_summary_group"] = group_by_member.get(row["strategy"], "")
+     write_csv(out / "literature_baselines.csv", provenance)
+     write_csv(out / "optional_policy_status.csv", optional_status)
+ 
+@@ -498,6 +580,9 @@
+     mechanism_names = {
+         PROPOSAL_NAME: (1, 1, 1),
+         SCALAR_HNDT_NAME: (1, 1, 0),
++        pareto_atomic_name: (1, 0, 1),
++        pareto_midpoint_stop_name: (0, 1, 1),
++        pareto_midpoint_atomic_name: (0, 0, 1),
+         atomic_name: (1, 0, 0),
+         midpoint_stop_name: (0, 1, 0),
+     }
+@@ -643,6 +728,9 @@
+             if row["status"] != "executed"
+         ],
+         "round_budget": args.round_budget,
++        "alphabetic_height_limit": args.alphabetic_height_limit,
++        "exact_pareto_arithmetic": True,
++        "pareto_pruning": "sorted exact 2-D antichain scan",
+         "pareto_stats": (
+             None
+             if pareto.stats is None
+--- /mnt/data/orig_repo/block_chain_paper-main/experiments/tests/test_baselines.py	2026-10-04 08:25:43.000000000 +0000
++++ experiments/tests/test_baselines.py	2026-10-06 08:47:18.295888050 +0000
+@@ -17,6 +17,10 @@
+     hu_tucker_atomic_policy,
+     kirkpatrick_klawe_atomic_policy,
+     optimal_mean_atomic_policy,
++    pareto_atomic_policy,
++    pareto_midpoint_adaptive_stop_policy,
++    pareto_midpoint_atomic_policy,
++    height_limited_mean_atomic_policy,
+ )
+ from hndt.core import CostModel, solve_hndt
+ from hndt.evaluate import evaluate_policy
+@@ -26,6 +30,8 @@
+     literature_baselines,
+     opml_phase1_policy,
+     policy_signature,
++    rdoc_binary_search_policy,
++    truebit_verification_game_policy,
+ )
+ 
+ 
+@@ -85,6 +91,8 @@
+         self.assertEqual(
+             [s.key for s in specs],
+             [
++                "rdoc_binary_search",
++                "truebit_verification_game",
+                 "arbitrum_ivp",
+                 "opml_phase1",
+                 "agatha_gpp_chain",
+@@ -104,6 +112,8 @@
+         terminal = {(i, i + 1): {"native": float(i + 1)} for i in range(5)}
+         model = CostModel(5, terminal, lambda i, j, k: 2.0)
+         policies = [
++            rdoc_binary_search_policy(model),
++            truebit_verification_game_policy(model),
+             arbitrum_ivp_policy(model),
+             opml_phase1_policy(model),
+             agatha_gpp_chain_policy(model),
+@@ -120,7 +130,13 @@
+     def test_literature_adaptations_require_native_atomic_arbitration(self):
+         terminal = {(0, 1): {"native": 1.0}, (1, 2): {"zkvm": 2.0}}
+         model = CostModel(2, terminal, lambda i, j, k: 1.0)
+-        for builder in [arbitrum_ivp_policy, opml_phase1_policy, agatha_gpp_chain_policy]:
++        for builder in [
++            rdoc_binary_search_policy,
++            truebit_verification_game_policy,
++            arbitrum_ivp_policy,
++            opml_phase1_policy,
++            agatha_gpp_chain_policy,
++        ]:
+             with self.subTest(builder=builder.__name__):
+                 with self.assertRaises(ValueError):
+                     builder(model)
+@@ -194,6 +210,33 @@
+         with self.assertRaises(ValueError):
+             zkopml.builder(model)
+ 
++
++    def test_pareto_mechanism_ablations_preserve_restrictions(self):
++        terminal = {(i, i + 1): {"native": float(10 + i)} for i in range(4)}
++        terminal.update({(0, 2): {"native": 3.0}, (2, 4): {"native": 4.0}})
++        model = CostModel(4, terminal, lambda i, j, k: 1.0)
++
++        atomic = pareto_atomic_policy(model)
++        self.assertTrue(all(p.terminal_j - p.terminal_i == 1 for p in evaluate_policy(model, atomic)))
++
++        midpoint_stop = pareto_midpoint_adaptive_stop_policy(model)
++        self.assertEqual(midpoint_stop[(0, 4)].split, 2)
++
++        midpoint_atomic = pareto_midpoint_atomic_policy(model)
++        self.assertEqual(midpoint_atomic[(0, 4)].split, 2)
++        self.assertTrue(
++            all(p.terminal_j - p.terminal_i == 1 for p in evaluate_policy(model, midpoint_atomic))
++        )
++
++    def test_height_limited_alphabetic_policy_respects_depth(self):
++        terminal = {(i, i + 1): {"native": float(i + 1)} for i in range(8)}
++        model = CostModel(8, terminal, lambda i, j, k: 2.0)
++        policy = height_limited_mean_atomic_policy(model, max_rounds=3)
++        paths = evaluate_policy(model, policy)
++        self.assertLessEqual(max(p.rounds for p in paths), 3)
++        with self.assertRaises(ValueError):
++            height_limited_mean_atomic_policy(model, max_rounds=2)
++
+     def test_direct_native_requires_full_interval_measurement(self):
+         model = CostModel(2, {(0, 1): {"native": 1.0}, (1, 2): {"native": 1.0}}, lambda i, j, k: 1.0)
+         with self.assertRaises(ValueError):
+--- /mnt/data/orig_repo/block_chain_paper-main/experiments/tests/test_pareto.py	2026-10-04 08:25:43.000000000 +0000
++++ experiments/tests/test_pareto.py	2026-10-06 08:47:18.850724363 +0000
+@@ -1,4 +1,5 @@
+ import math
++from fractions import Fraction
+ import random
+ import sys
+ import unittest
+@@ -132,6 +133,67 @@
+                 }
+                 self.assertEqual(actual, expected)
+ 
++
++    def test_exact_decimal_arithmetic_has_no_tolerance_collapse(self):
++        terminal = {
++            (0, 1): {"native": 0.1},
++            (1, 2): {"native": 0.2},
++            (0, 2): {"native": 0.3000000000001},
++        }
++        model = CostModel(2, terminal, lambda i, j, k: 0.0)
++        result = solve_pareto_hndt(model)
++        self.assertTrue(all(isinstance(x.worst_exact, Fraction) for x in result.root_frontier))
++        self.assertEqual(sum(result.exact_weights, Fraction(0, 1)), Fraction(1, 1))
++
++    def test_local_lexicographic_summary_is_not_compositionally_sufficient(self):
++        # Root split at k=1 has a left bottleneck W=10.  The right interval has
++        # two nondominated labels: local minimax (1,100) and (9,0).  Retaining
++        # only the local minimax label produces parent (10,100), while retaining
++        # the full frontier exposes (10,0).  This is the ancestor-slack reason
++        # that Pareto-HNDT must keep nondominated subpolicies.
++        from hndt.pareto import ParetoLabel, prune_nondominated
++        left = ParetoLabel((0, 1), Fraction(10), Fraction(0), 0, Action.settle("native"))
++        right_a = ParetoLabel((1, 2), Fraction(1), Fraction(100), 0, Action.settle("a"))
++        right_b = ParetoLabel((1, 2), Fraction(9), Fraction(0), 0, Action.settle("b"))
++        right_frontier = prune_nondominated([right_a, right_b])
++        self.assertEqual(len(right_frontier), 2)
++        local_minimax = min(right_frontier, key=lambda x: (x.worst_exact, x.mean_exact))
++        parent_local = (max(left.worst_exact, local_minimax.worst_exact), left.mean_exact + local_minimax.mean_exact)
++        parent_full = min(
++            (max(left.worst_exact, y.worst_exact), left.mean_exact + y.mean_exact)
++            for y in right_frontier
++        )
++        self.assertEqual(parent_local, (Fraction(10), Fraction(100)))
++        self.assertEqual(parent_full, (Fraction(10), Fraction(0)))
++
++    def test_sorted_pruning_matches_quadratic_definition_randomly(self):
++        from hndt.pareto import ParetoLabel
++        rng = random.Random(20261006)
++        for _ in range(50):
++            labels = []
++            for i in range(40):
++                labels.append(
++                    ParetoLabel(
++                        (0, 1),
++                        Fraction(rng.randint(0, 20)),
++                        Fraction(rng.randint(0, 20)),
++                        rng.randint(0, 3),
++                        Action.settle(f"b{i}"),
++                    )
++                )
++            actual = {(x.worst_exact, x.mean_exact) for x in prune_nondominated(labels)}
++            expected = set()
++            for x in labels:
++                dominated = any(
++                    y.worst_exact <= x.worst_exact
++                    and y.mean_exact <= x.mean_exact
++                    and (y.worst_exact < x.worst_exact or y.mean_exact < x.mean_exact)
++                    for y in labels
++                )
++                if not dominated:
++                    expected.add((x.worst_exact, x.mean_exact))
++            self.assertEqual(actual, expected)
++
+     def test_mean_first_endpoint_can_trade_worst_for_mean(self):
+         terminal = {
+             (0, 1): {"native": 100.0},
+--- /dev/null	2026-10-06 08:20:24.447683497 +0000
++++ JLAMP_CODE_CHANGELOG.md	2026-10-06 08:49:37.505436857 +0000
+@@ -0,0 +1,52 @@
++# JLAMP-oriented code revision
++
++This revision strengthens the existing method without changing its stop-or-split
++research idea.
++
++## Core numerical/algorithmic changes
++
++- Pareto objective arithmetic is exact rational arithmetic (`Fraction`) rather
++  than tolerance-dependent floating-point dominance.
++- Root/subinterval second objective is documented as weighted expected-cost
++  contribution (expectation mass); it equals expected cost at the root.
++- 2-D Pareto pruning uses sorting plus a one-pass antichain scan (`O(C log C)`
++  for `C` interval candidates) instead of quadratic all-pairs dominance tests.
++- Restriction hooks were added to the Pareto solver for fair mechanism ablation
++  without duplicating the solver.
++
++## Fair ablations
++
++- Pareto adaptive-split + atomic-stop.
++- Pareto midpoint-split + adaptive-stop.
++- Pareto midpoint-split + atomic-stop.
++- Legacy scalar ablations are retained so old tables/scripts still run.
++
++## Paper-backed baselines
++
++- RDoC binary-search localization (Canetti--Riva--Rothblum, 2013).
++- TrueBit binary verification-game localization.
++- Existing Arbitrum, opML, Agatha, Kirkpatrick--Klawe, Hu--Tucker, and gated
++  zk-OPML adapters are retained.
++- Height-limited alphabetic weighted-path baseline (Larmore--Przytycka, 1994),
++  default depth `L=4`, configurable with `--alphabetic-height-limit`.
++
++Close midpoint/binary-search system adaptations are deduplicated in the main
++summary instead of presented as falsely independent numerical methods.
++
++## Theorem-driven regression checks
++
++- Exact decimal/rational arithmetic check.
++- Sorted Pareto pruning vs the quadratic dominance definition on random labels.
++- Ancestor-slack counterexample: a child label that is locally worse in minimax
++  cost can give strictly lower parent expected cost without changing parent
++  worst-case cost, proving that one local lexicographic label is insufficient.
++- Height-budget compliance and infeasibility checks.
++- Fair Pareto-ablation action-space checks.
++
++## Validation
++
++- `89/89` Python unit tests pass.
++- `bash run_tests.sh` passes all available unit, vector-generation, and synthetic
++  integration/campaign smoke tests.
++- The environment-dependent CKB RISC-V build regression remains skipped when the
++  Cargo/rustup/target toolchain is unavailable; no result is fabricated.
+--- /dev/null	2026-10-06 08:20:24.447683497 +0000
++++ experiments/hndt/exact.py	2026-10-06 08:45:07.156658253 +0000
+@@ -0,0 +1,73 @@
++from __future__ import annotations
++
++"""Exact numeric helpers for discrete verification-cost optimization.
++
++The measured CKB quantities are integer cycle counts, while sensitivity studies
++may supply finite decimal values.  Converting through the human-readable decimal
++representation makes comparisons exact with respect to the values supplied to
++this repository and avoids tolerance-dependent Pareto pruning.
++"""
++
++from decimal import Decimal
++from fractions import Fraction
++from math import isfinite
++from numbers import Integral, Real
++from typing import Sequence
++
++Exact = Fraction
++
++
++def as_fraction(value) -> Fraction:
++    """Convert a finite numeric value to an exact :class:`Fraction`.
++
++    Floats are converted through ``str(value)`` rather than their binary IEEE-754
++    representation.  Thus ``1.5`` becomes exactly ``3/2`` and measured integer
++    cycles stored as ``37382.0`` become exactly ``37382``.
++    """
++
++    if isinstance(value, Fraction):
++        return value
++    if isinstance(value, bool):
++        raise TypeError("boolean values are not valid costs or weights")
++    if isinstance(value, Integral):
++        return Fraction(int(value), 1)
++    if isinstance(value, Decimal):
++        if not value.is_finite():
++            raise ValueError("value must be finite")
++        return Fraction(value)
++    if isinstance(value, Real):
++        number = float(value)
++        if not isfinite(number):
++            raise ValueError("value must be finite")
++        return Fraction(str(number))
++    if isinstance(value, str):
++        text = value.strip()
++        if not text:
++            raise ValueError("numeric string must be non-empty")
++        decimal = Decimal(text)
++        if not decimal.is_finite():
++            raise ValueError("value must be finite")
++        return Fraction(decimal)
++    raise TypeError(f"unsupported exact numeric type: {type(value).__name__}")
++
++
++def normalize_weight_fractions(
++    n: int,
++    weights: Sequence[float] | None = None,
++) -> tuple[Fraction, ...]:
++    """Return exact non-negative normalized weights summing to one."""
++
++    if not isinstance(n, int) or isinstance(n, bool) or n <= 0:
++        raise ValueError("n must be a positive integer")
++    if weights is None:
++        return tuple(Fraction(1, n) for _ in range(n))
++    if len(weights) != n:
++        raise ValueError(f"fault weights must have length {n}, got {len(weights)}")
++
++    values = tuple(as_fraction(x) for x in weights)
++    if any(x < 0 for x in values):
++        raise ValueError("fault weights must be non-negative")
++    total = sum(values, Fraction(0, 1))
++    if total <= 0:
++        raise ValueError("at least one fault weight must be positive")
++    return tuple(x / total for x in values)
+--- /dev/null	2026-10-06 08:20:24.447683497 +0000
++++ experiments/run_theory_checks.py	2026-10-06 08:49:36.924922524 +0000
+@@ -0,0 +1,88 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++"""Executable checks for the compositional claims used in the JLAMP revision.
++
++This script is intentionally measurement-free.  It exports small exact examples
++that explain why a single locally lexicographic label is not a sufficient DP
++summary and why the nondominated antichain is required.
++"""
++
++import argparse
++import json
++from fractions import Fraction
++from pathlib import Path
++
++from hndt.core import Action
++from hndt.pareto import ParetoLabel, prune_nondominated
++
++
++def _pair(label: ParetoLabel) -> tuple[Fraction, Fraction]:
++    return label.worst_exact, label.mean_exact
++
++
++def ancestor_slack_counterexample() -> dict:
++    left = ParetoLabel(
++        interval=(0, 1),
++        worst_exact=Fraction(10),
++        mean_exact=Fraction(0),
++        max_rounds=0,
++        action=Action.settle("left"),
++    )
++    right_local_minimax = ParetoLabel(
++        interval=(1, 2),
++        worst_exact=Fraction(1),
++        mean_exact=Fraction(100),
++        max_rounds=0,
++        action=Action.settle("right_minimax"),
++    )
++    right_slack_exploiting = ParetoLabel(
++        interval=(1, 2),
++        worst_exact=Fraction(9),
++        mean_exact=Fraction(0),
++        max_rounds=0,
++        action=Action.settle("right_slack"),
++    )
++    frontier = prune_nondominated([right_local_minimax, right_slack_exploiting])
++    local = min(frontier, key=lambda x: (x.worst_exact, x.mean_exact))
++
++    def compose(right: ParetoLabel) -> tuple[Fraction, Fraction]:
++        return max(left.worst_exact, right.worst_exact), left.mean_exact + right.mean_exact
++
++    local_parent = compose(local)
++    full_parent = min(compose(right) for right in frontier)
++    assert local_parent == (Fraction(10), Fraction(100))
++    assert full_parent == (Fraction(10), Fraction(0))
++
++    return {
++        "claim": "local lexicographic minimization is not compositionally sufficient",
++        "left_bottleneck": [str(x) for x in _pair(left)],
++        "right_frontier": [[str(x) for x in _pair(label)] for label in frontier],
++        "parent_using_local_minimax": [str(x) for x in local_parent],
++        "parent_using_full_frontier": [str(x) for x in full_parent],
++        "same_parent_worst_case": local_parent[0] == full_parent[0],
++        "strict_parent_expected_improvement": full_parent[1] < local_parent[1],
++    }
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser()
++    parser.add_argument(
++        "--out",
++        default="experiments/results/theory_checks.json",
++        help="Output JSON path",
++    )
++    args = parser.parse_args()
++    out = Path(args.out)
++    out.parent.mkdir(parents=True, exist_ok=True)
++    payload = {
++        "arithmetic": "exact rational",
++        "dominance_tolerance": 0,
++        "ancestor_slack_counterexample": ancestor_slack_counterexample(),
++    }
++    out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
++    print(json.dumps(payload, indent=2))
++
++
++if __name__ == "__main__":
++    main()

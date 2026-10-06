@@ -15,8 +15,12 @@ if str(ROOT) not in sys.path:
 from hndt.baselines import (
     direct_native_policy,
     fixed_g_policy,
+    height_limited_mean_atomic_policy,
     midpoint_adaptive_stop_policy,
     optimal_split_atomic_policy,
+    pareto_atomic_policy,
+    pareto_midpoint_adaptive_stop_policy,
+    pareto_midpoint_atomic_policy,
 )
 from hndt.core import CostModel, solve_hndt, solve_hndt_round_budget
 from hndt.evaluate import evaluate_policy, summarize, weighted_mean_cost
@@ -80,6 +84,15 @@ def parse_args():
         help=(
             "Optionally add one scalar-HNDT latency-constrained policy with at most this many "
             "split rounds. The Pareto proposal itself remains unconstrained."
+        ),
+    )
+    p.add_argument(
+        "--alphabetic-height-limit",
+        type=int,
+        default=4,
+        help=(
+            "Maximum split depth for the Larmore-Przytycka-style height-limited "
+            "alphabetic mean baseline. Set negative to disable."
         ),
     )
     return p.parse_args()
@@ -362,13 +375,49 @@ def main():
         policies[group["name"]] = group["policy"]
         categories[group["name"]] = "paper-supported baseline"
 
-    # Mechanism-isolation ablations around the same action space.
-    atomic_name = "Ablation: adaptive split + atomic stop"
-    midpoint_stop_name = "Ablation: midpoint split + adaptive stop"
+    # Mechanism-isolation ablations.  The Pareto variants preserve the exact
+    # minimax-safe secondary objective so split/stopping effects are not
+    # confounded with objective selection.  Scalar variants are retained for
+    # backward compatibility with the previous manuscript tables.
+    pareto_atomic_name = "Ablation: Pareto adaptive split + atomic stop"
+    pareto_midpoint_stop_name = "Ablation: Pareto midpoint split + adaptive stop"
+    pareto_midpoint_atomic_name = "Ablation: Pareto midpoint split + atomic stop"
+    policies[pareto_atomic_name] = pareto_atomic_policy(model, fault_weights=fault_weights)
+    categories[pareto_atomic_name] = "fair Pareto mechanism ablation"
+    policies[pareto_midpoint_stop_name] = pareto_midpoint_adaptive_stop_policy(
+        model, fault_weights=fault_weights
+    )
+    categories[pareto_midpoint_stop_name] = "fair Pareto mechanism ablation"
+    policies[pareto_midpoint_atomic_name] = pareto_midpoint_atomic_policy(
+        model, fault_weights=fault_weights
+    )
+    categories[pareto_midpoint_atomic_name] = "fair Pareto mechanism ablation"
+
+    atomic_name = "Ablation: scalar adaptive split + atomic stop"
+    midpoint_stop_name = "Ablation: scalar midpoint split + adaptive stop"
     policies[atomic_name] = optimal_split_atomic_policy(model)
-    categories[atomic_name] = "mechanism ablation"
+    categories[atomic_name] = "legacy scalar mechanism ablation"
     policies[midpoint_stop_name] = midpoint_adaptive_stop_policy(model)
-    categories[midpoint_stop_name] = "mechanism ablation"
+    categories[midpoint_stop_name] = "legacy scalar mechanism ablation"
+
+    if args.alphabetic_height_limit is not None and args.alphabetic_height_limit >= 0:
+        height_name = (
+            "Height-limited alphabetic mean "
+            f"(Larmore-Przytycka objective, L={args.alphabetic_height_limit})"
+        )
+        try:
+            policies[height_name] = height_limited_mean_atomic_policy(
+                model,
+                max_rounds=args.alphabetic_height_limit,
+                fault_weights=fault_weights,
+            )
+            categories[height_name] = "paper-supported classical-tree baseline"
+        except ValueError as exc:
+            height_name = None
+            height_error = str(exc)
+    else:
+        height_name = None
+        height_error = "disabled"
 
     # Strongest globally fixed granularity under oracle access to this table.
     best_g_cost, best_g_mean, best_g, best_g_policy, _ = choose_best_fixed_g(model, fault_weights=fault_weights)
@@ -470,16 +519,49 @@ def main():
     write_csv(out / "literature_policy_groups.csv", group_rows)
 
     provenance = provenance_rows()
+    if args.alphabetic_height_limit is not None and args.alphabetic_height_limit >= 0:
+        provenance.append({
+            "strategy": (
+                "Height-limited alphabetic mean "
+                f"(Larmore-Przytycka objective, L={args.alphabetic_height_limit})"
+            ),
+            "key": "larmore_przytycka_height_limited_mean",
+            "baseline_class": "classical-tree-theory",
+            "paper": (
+                "Larmore and Przytycka, A Fast Algorithm for Optimum Height-Limited "
+                "Alphabetic Binary Trees"
+            ),
+            "year": 1994,
+            "url": "https://doi.org/10.1137/S0097539792231167",
+            "fidelity": "exact objective adaptation under forced atomic leaves and constant query cost",
+            "comparable_component": (
+                "Ordered fixed-leaf weighted-path-length minimization subject to an explicit "
+                "maximum tree height."
+            ),
+            "excluded_components": (
+                "Historical implementation algorithm; this repository uses an independent exact "
+                "interval DP for the same constrained objective."
+            ),
+            "common_environment": (
+                "same ordered trace, same measured atomic terminal costs, same corrected Merkle "
+                "query cost, same fault weights"
+            ),
+            "claim_guard": "objective adaptation; not a reproduction of the historical implementation",
+            "status": "executed" if height_name is not None else "skipped",
+            "status_reason": "" if height_name is not None else height_error,
+            "main_summary_group": height_name or "",
+        })
     status_by_name = {row["strategy"]: row for row in literature_status}
     group_by_member = {}
     for group in literature_groups:
         for spec in group["members"]:
             group_by_member[spec.display_name] = group["name"]
     for row in provenance:
-        status = status_by_name[row["strategy"]]
-        row["status"] = status["status"]
-        row["status_reason"] = status["reason"]
-        row["main_summary_group"] = group_by_member.get(row["strategy"], "")
+        status = status_by_name.get(row["strategy"])
+        if status is not None:
+            row["status"] = status["status"]
+            row["status_reason"] = status["reason"]
+            row["main_summary_group"] = group_by_member.get(row["strategy"], "")
     write_csv(out / "literature_baselines.csv", provenance)
     write_csv(out / "optional_policy_status.csv", optional_status)
 
@@ -498,6 +580,9 @@ def main():
     mechanism_names = {
         PROPOSAL_NAME: (1, 1, 1),
         SCALAR_HNDT_NAME: (1, 1, 0),
+        pareto_atomic_name: (1, 0, 1),
+        pareto_midpoint_stop_name: (0, 1, 1),
+        pareto_midpoint_atomic_name: (0, 0, 1),
         atomic_name: (1, 0, 0),
         midpoint_stop_name: (0, 1, 0),
     }
@@ -643,6 +728,9 @@ def main():
             if row["status"] != "executed"
         ],
         "round_budget": args.round_budget,
+        "alphabetic_height_limit": args.alphabetic_height_limit,
+        "exact_pareto_arithmetic": True,
+        "pareto_pruning": "sorted exact 2-D antichain scan",
         "pareto_stats": (
             None
             if pareto.stats is None

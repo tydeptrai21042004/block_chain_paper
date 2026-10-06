@@ -41,7 +41,8 @@ bash run_tests.sh
 
 The current suite validates:
 
-- exact Pareto-HNDT frontier and minimax-preserving mean selector;
+- exact-rational Pareto-HNDT frontier and minimax-preserving mean selector;
+- sorted exact 2-D antichain pruning and ancestor-slack regression checks;
 - exact unconstrained scalar HNDT recovery;
 - exact round-budgeted HNDT;
 - mechanism-isolation ablations;
@@ -81,10 +82,12 @@ The main run reports:
 
 - **Pareto-HNDT (minimax-safe)** as the primary proposal;
 - scalar HNDT as a proposal ablation/regression oracle;
-- one deduplicated Arbitrum/opML/Agatha midpoint family;
-- Kirkpatrick--Klawe alphabetic-minimax and Hu--Tucker weighted-path objective baselines;
+- one deduplicated RDoC/TrueBit/Arbitrum/opML/Agatha midpoint family;
+- Kirkpatrick--Klawe alphabetic-minimax, Hu--Tucker weighted-path, and
+  Larmore--Przytycka height-limited alphabetic objective baselines;
 - conditional zk-OPML operator-level ZK comparison when complete reproduced ZK costs exist;
-- adaptive-split, adaptive-stop, mean-first, fixed-`g`, heterogeneity, and round-budget ablations.
+- fair Pareto adaptive-split/adaptive-stop factorial ablations, legacy scalar
+  mechanism ablations, mean-first, fixed-`g`, heterogeneity, and round-budget ablations.
 
 Additional outputs include the exact worst/mean Pareto frontier, a proposal-gain table,
 an exact scalar round-budget frontier, and a scalar-HNDT policy audit with the cost
@@ -101,3 +104,14 @@ verification/dispute cost rather than predictive accuracy.
 The benchmark still does not claim complete transaction cost: witness syscalls,
 Cell serialization, and production model/economic plumbing must be measured
 separately.
+
+
+## JLAMP-oriented theory artifact
+
+```bash
+python experiments/run_theory_checks.py
+```
+
+This emits an exact ancestor-bottleneck/slack counterexample demonstrating that
+a locally lexicographic minimax summary can lose a globally better expected-cost
+policy while leaving the parent's worst-case objective unchanged.

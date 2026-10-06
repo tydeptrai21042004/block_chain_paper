@@ -17,6 +17,10 @@ from hndt.baselines import (
     hu_tucker_atomic_policy,
     kirkpatrick_klawe_atomic_policy,
     optimal_mean_atomic_policy,
+    pareto_atomic_policy,
+    pareto_midpoint_adaptive_stop_policy,
+    pareto_midpoint_atomic_policy,
+    height_limited_mean_atomic_policy,
 )
 from hndt.core import CostModel, solve_hndt
 from hndt.evaluate import evaluate_policy
@@ -26,6 +30,8 @@ from hndt.literature_baselines import (
     literature_baselines,
     opml_phase1_policy,
     policy_signature,
+    rdoc_binary_search_policy,
+    truebit_verification_game_policy,
 )
 
 
@@ -85,6 +91,8 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(
             [s.key for s in specs],
             [
+                "rdoc_binary_search",
+                "truebit_verification_game",
                 "arbitrum_ivp",
                 "opml_phase1",
                 "agatha_gpp_chain",
@@ -104,6 +112,8 @@ class BaselineTests(unittest.TestCase):
         terminal = {(i, i + 1): {"native": float(i + 1)} for i in range(5)}
         model = CostModel(5, terminal, lambda i, j, k: 2.0)
         policies = [
+            rdoc_binary_search_policy(model),
+            truebit_verification_game_policy(model),
             arbitrum_ivp_policy(model),
             opml_phase1_policy(model),
             agatha_gpp_chain_policy(model),
@@ -120,7 +130,13 @@ class BaselineTests(unittest.TestCase):
     def test_literature_adaptations_require_native_atomic_arbitration(self):
         terminal = {(0, 1): {"native": 1.0}, (1, 2): {"zkvm": 2.0}}
         model = CostModel(2, terminal, lambda i, j, k: 1.0)
-        for builder in [arbitrum_ivp_policy, opml_phase1_policy, agatha_gpp_chain_policy]:
+        for builder in [
+            rdoc_binary_search_policy,
+            truebit_verification_game_policy,
+            arbitrum_ivp_policy,
+            opml_phase1_policy,
+            agatha_gpp_chain_policy,
+        ]:
             with self.subTest(builder=builder.__name__):
                 with self.assertRaises(ValueError):
                     builder(model)
@@ -193,6 +209,33 @@ class BaselineTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             zkopml.builder(model)
+
+
+    def test_pareto_mechanism_ablations_preserve_restrictions(self):
+        terminal = {(i, i + 1): {"native": float(10 + i)} for i in range(4)}
+        terminal.update({(0, 2): {"native": 3.0}, (2, 4): {"native": 4.0}})
+        model = CostModel(4, terminal, lambda i, j, k: 1.0)
+
+        atomic = pareto_atomic_policy(model)
+        self.assertTrue(all(p.terminal_j - p.terminal_i == 1 for p in evaluate_policy(model, atomic)))
+
+        midpoint_stop = pareto_midpoint_adaptive_stop_policy(model)
+        self.assertEqual(midpoint_stop[(0, 4)].split, 2)
+
+        midpoint_atomic = pareto_midpoint_atomic_policy(model)
+        self.assertEqual(midpoint_atomic[(0, 4)].split, 2)
+        self.assertTrue(
+            all(p.terminal_j - p.terminal_i == 1 for p in evaluate_policy(model, midpoint_atomic))
+        )
+
+    def test_height_limited_alphabetic_policy_respects_depth(self):
+        terminal = {(i, i + 1): {"native": float(i + 1)} for i in range(8)}
+        model = CostModel(8, terminal, lambda i, j, k: 2.0)
+        policy = height_limited_mean_atomic_policy(model, max_rounds=3)
+        paths = evaluate_policy(model, policy)
+        self.assertLessEqual(max(p.rounds for p in paths), 3)
+        with self.assertRaises(ValueError):
+            height_limited_mean_atomic_policy(model, max_rounds=2)
 
     def test_direct_native_requires_full_interval_measurement(self):
         model = CostModel(2, {(0, 1): {"native": 1.0}, (1, 2): {"native": 1.0}}, lambda i, j, k: 1.0)

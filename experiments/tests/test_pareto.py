@@ -1,4 +1,5 @@
 import math
+from fractions import Fraction
 import random
 import sys
 import unittest
@@ -131,6 +132,67 @@ class ParetoHNDTTests(unittest.TestCase):
                     for x in result.root_frontier
                 }
                 self.assertEqual(actual, expected)
+
+
+    def test_exact_decimal_arithmetic_has_no_tolerance_collapse(self):
+        terminal = {
+            (0, 1): {"native": 0.1},
+            (1, 2): {"native": 0.2},
+            (0, 2): {"native": 0.3000000000001},
+        }
+        model = CostModel(2, terminal, lambda i, j, k: 0.0)
+        result = solve_pareto_hndt(model)
+        self.assertTrue(all(isinstance(x.worst_exact, Fraction) for x in result.root_frontier))
+        self.assertEqual(sum(result.exact_weights, Fraction(0, 1)), Fraction(1, 1))
+
+    def test_local_lexicographic_summary_is_not_compositionally_sufficient(self):
+        # Root split at k=1 has a left bottleneck W=10.  The right interval has
+        # two nondominated labels: local minimax (1,100) and (9,0).  Retaining
+        # only the local minimax label produces parent (10,100), while retaining
+        # the full frontier exposes (10,0).  This is the ancestor-slack reason
+        # that Pareto-HNDT must keep nondominated subpolicies.
+        from hndt.pareto import ParetoLabel, prune_nondominated
+        left = ParetoLabel((0, 1), Fraction(10), Fraction(0), 0, Action.settle("native"))
+        right_a = ParetoLabel((1, 2), Fraction(1), Fraction(100), 0, Action.settle("a"))
+        right_b = ParetoLabel((1, 2), Fraction(9), Fraction(0), 0, Action.settle("b"))
+        right_frontier = prune_nondominated([right_a, right_b])
+        self.assertEqual(len(right_frontier), 2)
+        local_minimax = min(right_frontier, key=lambda x: (x.worst_exact, x.mean_exact))
+        parent_local = (max(left.worst_exact, local_minimax.worst_exact), left.mean_exact + local_minimax.mean_exact)
+        parent_full = min(
+            (max(left.worst_exact, y.worst_exact), left.mean_exact + y.mean_exact)
+            for y in right_frontier
+        )
+        self.assertEqual(parent_local, (Fraction(10), Fraction(100)))
+        self.assertEqual(parent_full, (Fraction(10), Fraction(0)))
+
+    def test_sorted_pruning_matches_quadratic_definition_randomly(self):
+        from hndt.pareto import ParetoLabel
+        rng = random.Random(20261006)
+        for _ in range(50):
+            labels = []
+            for i in range(40):
+                labels.append(
+                    ParetoLabel(
+                        (0, 1),
+                        Fraction(rng.randint(0, 20)),
+                        Fraction(rng.randint(0, 20)),
+                        rng.randint(0, 3),
+                        Action.settle(f"b{i}"),
+                    )
+                )
+            actual = {(x.worst_exact, x.mean_exact) for x in prune_nondominated(labels)}
+            expected = set()
+            for x in labels:
+                dominated = any(
+                    y.worst_exact <= x.worst_exact
+                    and y.mean_exact <= x.mean_exact
+                    and (y.worst_exact < x.worst_exact or y.mean_exact < x.mean_exact)
+                    for y in labels
+                )
+                if not dominated:
+                    expected.add((x.worst_exact, x.mean_exact))
+            self.assertEqual(actual, expected)
 
     def test_mean_first_endpoint_can_trade_worst_for_mean(self):
         terminal = {

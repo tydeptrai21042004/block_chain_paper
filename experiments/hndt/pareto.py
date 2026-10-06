@@ -2,37 +2,39 @@ from __future__ import annotations
 
 """Exact Pareto extension of HNDT.
 
-The original HNDT dynamic program minimizes only the adversarial worst-case
-fault-path cost.  This module keeps the same stop-or-split action space but
-computes the nondominated frontier of
+The stop-or-split action space is unchanged.  The solver computes the exact
+nondominated frontier of two objectives:
 
-    (worst-case fault-path cost, weighted mean fault-path cost).
+    (worst-case fault-path cost, weighted expected-cost contribution).
 
-No scalarization coefficient is introduced.  The primary proposal is selected
-lexicographically: first preserve the exact HNDT minimax optimum, then minimize
-weighted mean cost among *all* minimax-optimal policies.
+All Pareto comparisons use rational arithmetic.  No epsilon/tolerance is used
+for scientific objective equality or dominance.  Public reporting properties
+remain floats for compatibility with the existing CSV/plotting pipeline.
 
-For normalized fault weights p_t and interval mass P_ij = sum_{t=i}^{j-1} p_t,
-terminal settlement with cost A contributes
+For normalized fault weights p_t and interval mass P_ij, terminal settlement
+with cost A contributes
 
     (A, P_ij A),
 
-while a split with query cost q composes child labels (W_L, M_L) and
-(W_R, M_R) as
+and a split with query cost q composes child labels (W_L, M_L), (W_R, M_R) as
 
     (q + max(W_L, W_R), P_ij q + M_L + M_R).
 
-Dominated labels can be discarded exactly because both composition operators
-are monotone in each child objective.
+The second coordinate is deliberately an *unnormalized expectation mass* on a
+subinterval.  At the root P_0n = 1, so it equals the ordinary expected cost.
 """
 
 from dataclasses import dataclass
-from math import inf, isfinite, isnan
-from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple
+from fractions import Fraction
+from math import isnan
+from typing import Callable, Dict, Iterable, Optional, Sequence, Tuple
 
 from .core import Action, CostModel
+from .exact import as_fraction, normalize_weight_fractions
 
 Interval = Tuple[int, int]
+SplitFilter = Callable[[int, int, int], bool]
+TerminalFilter = Callable[[int, int, str], bool]
 
 
 @dataclass(frozen=True)
@@ -40,14 +42,20 @@ class ParetoLabel:
     """One achievable nondominated objective pair for an interval."""
 
     interval: Interval
-    worst_cost: float
-    mean_cost: float
+    worst_exact: Fraction
+    mean_exact: Fraction
     max_rounds: int
     action: Action
     left: Optional["ParetoLabel"] = None
     right: Optional["ParetoLabel"] = None
 
+    @property
+    def worst_cost(self) -> float:
+        return float(self.worst_exact)
 
+    @property
+    def mean_cost(self) -> float:
+        return float(self.mean_exact)
 
 
 @dataclass
@@ -75,6 +83,7 @@ class ParetoHNDTResult:
 
     n: int
     weights: Tuple[float, ...]
+    exact_weights: Tuple[Fraction, ...]
     frontier: Dict[Interval, Tuple[ParetoLabel, ...]]
     selected: ParetoLabel
     policy: Dict[Interval, Action]
@@ -85,8 +94,16 @@ class ParetoHNDTResult:
         return self.selected.worst_cost
 
     @property
+    def worst_optimum_exact(self) -> Fraction:
+        return self.selected.worst_exact
+
+    @property
     def mean_at_worst_optimum(self) -> float:
         return self.selected.mean_cost
+
+    @property
+    def mean_at_worst_optimum_exact(self) -> Fraction:
+        return self.selected.mean_exact
 
     @property
     def max_rounds(self) -> int:
@@ -97,33 +114,13 @@ class ParetoHNDTResult:
         return self.frontier[(0, self.n)]
 
 
-def normalize_fault_weights(n: int, weights: Optional[Sequence[float]] = None) -> Tuple[float, ...]:
-    """Validate and normalize nonnegative fault weights to sum to one.
+def normalize_fault_weights(
+    n: int,
+    weights: Optional[Sequence[float]] = None,
+) -> Tuple[float, ...]:
+    """Backward-compatible float view of the exactly normalized weights."""
 
-    ``None`` means a uniform distribution, so the second objective is the
-    arithmetic mean over all possible single-fault positions.  This is the
-    manuscript's distribution-free diagnostic: every position receives equal
-    weight and no learned fault model is required.
-    """
-
-    if not isinstance(n, int) or isinstance(n, bool) or n <= 0:
-        raise ValueError("n must be a positive integer")
-    if weights is None:
-        return tuple(1.0 / n for _ in range(n))
-    if len(weights) != n:
-        raise ValueError(f"fault weights must have length {n}, got {len(weights)}")
-    values = []
-    for index, raw in enumerate(weights):
-        value = float(raw)
-        if isnan(value) or not isfinite(value) or value < 0:
-            raise ValueError(
-                f"fault weight at position {index} must be finite and non-negative"
-            )
-        values.append(value)
-    total = sum(values)
-    if total <= 0:
-        raise ValueError("at least one fault weight must be positive")
-    return tuple(v / total for v in values)
+    return tuple(float(x) for x in normalize_weight_fractions(n, weights))
 
 
 def _action_tie_key(label: ParetoLabel) -> tuple:
@@ -141,84 +138,74 @@ def _action_tie_key(label: ParetoLabel) -> tuple:
         )
     split = -1 if act.split is None else int(act.split)
     i, j = label.interval
-    midpoint = (i + j) / 2.0
-    return (label.max_rounds, 1, 2, "", abs(split - midpoint), split)
+    # Compare twice the distance to the midpoint using integers.
+    midpoint_distance2 = abs(2 * split - (i + j))
+    return (label.max_rounds, 1, 2, "", midpoint_distance2, split)
 
 
-def _equivalent(a: ParetoLabel, b: ParetoLabel, tol: float) -> bool:
+def _equivalent(a: ParetoLabel, b: ParetoLabel) -> bool:
+    return a.worst_exact == b.worst_exact and a.mean_exact == b.mean_exact
+
+
+def _dominates(a: ParetoLabel, b: ParetoLabel) -> bool:
     return (
-        abs(a.worst_cost - b.worst_cost) <= tol
-        and abs(a.mean_cost - b.mean_cost) <= tol
+        a.worst_exact <= b.worst_exact
+        and a.mean_exact <= b.mean_exact
+        and (a.worst_exact < b.worst_exact or a.mean_exact < b.mean_exact)
     )
 
 
-def _dominates(a: ParetoLabel, b: ParetoLabel, tol: float) -> bool:
-    no_worse = (
-        a.worst_cost <= b.worst_cost + tol
-        and a.mean_cost <= b.mean_cost + tol
-    )
-    strictly_better = (
-        a.worst_cost < b.worst_cost - tol
-        or a.mean_cost < b.mean_cost - tol
-    )
-    return no_worse and strictly_better
+def _validate_legacy_tolerance(tie_tolerance: float) -> None:
+    # Retain the old argument so external scripts do not break, but objective
+    # comparisons are exact and do not use this tolerance.
+    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+        raise ValueError("tie_tolerance must be non-negative and not NaN")
 
 
 def _prune_nondominated_with_counts(
     labels: Iterable[ParetoLabel],
-    tie_tolerance: float = 1e-12,
+    tie_tolerance: float = 0.0,
 ) -> tuple[Tuple[ParetoLabel, ...], int, int, int]:
-    """Return frontier plus duplicate/dominance counts for diagnostics."""
+    """Exact O(C log C) 2-D Pareto pruning for ``C`` candidate labels.
 
-    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
-        raise ValueError("tie_tolerance must be non-negative and not NaN")
+    Candidates are sorted by increasing worst-case cost and then expected-cost
+    mass.  Exact duplicate objective pairs are collapsed by tertiary policy
+    preference.  A single scan then retains a label iff its second coordinate
+    is strictly smaller than every earlier label's second coordinate.
+    """
 
-    finite = [
-        x
-        for x in labels
-        if isfinite(x.worst_cost) and isfinite(x.mean_cost)
-    ]
-    finite.sort(key=lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x)))
+    _validate_legacy_tolerance(tie_tolerance)
+    ordered = sorted(
+        labels,
+        key=lambda x: (x.worst_exact, x.mean_exact, _action_tie_key(x)),
+    )
+    finite_candidates = len(ordered)
 
     unique: list[ParetoLabel] = []
-    for label in finite:
-        duplicate_index = next(
-            (idx for idx, kept in enumerate(unique) if _equivalent(label, kept, tie_tolerance)),
-            None,
-        )
-        if duplicate_index is None:
+    for label in ordered:
+        if unique and _equivalent(label, unique[-1]):
+            if _action_tie_key(label) < _action_tie_key(unique[-1]):
+                unique[-1] = label
+        else:
             unique.append(label)
-        elif _action_tie_key(label) < _action_tie_key(unique[duplicate_index]):
-            unique[duplicate_index] = label
 
-    frontier = []
+    frontier: list[ParetoLabel] = []
+    best_mean: Fraction | None = None
     for label in unique:
-        if any(
-            other is not label and _dominates(other, label, tie_tolerance)
-            for other in unique
-        ):
-            continue
-        frontier.append(label)
+        if best_mean is None or label.mean_exact < best_mean:
+            frontier.append(label)
+            best_mean = label.mean_exact
 
-    frontier.sort(key=lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x)))
-    return (
-        tuple(frontier),
-        len(finite) - len(unique),
-        len(unique) - len(frontier),
-        len(finite),
-    )
+    duplicate_pruned = finite_candidates - len(unique)
+    dominated_pruned = len(unique) - len(frontier)
+    return tuple(frontier), duplicate_pruned, dominated_pruned, finite_candidates
 
 
 def prune_nondominated(
     labels: Iterable[ParetoLabel],
-    tie_tolerance: float = 1e-12,
+    tie_tolerance: float = 0.0,
 ) -> Tuple[ParetoLabel, ...]:
-    """Return a deterministic exact 2-D nondominated frontier.
-
-    Equal objective pairs are collapsed using only tertiary policy preferences
-    (fewer rounds, then deterministic action ordering).  Dominance itself is
-    based solely on the two scientific objectives.
-    """
+    """Return a deterministic exact 2-D nondominated frontier."""
 
     frontier, _, _, _ = _prune_nondominated_with_counts(labels, tie_tolerance)
     return frontier
@@ -252,19 +239,14 @@ def select_frontier_label(
     *,
     mode: str = "minimax_safe",
 ) -> ParetoLabel:
-    """Select one deterministic policy from a Pareto frontier.
-
-    ``minimax_safe`` minimizes worst-case cost first and mean cost second.
-    ``mean_first`` is an ablation endpoint that minimizes mean cost first and
-    worst-case cost second.
-    """
+    """Select one deterministic policy from a Pareto frontier."""
 
     if not labels:
         raise ValueError("cannot select from an empty Pareto frontier")
     if mode == "minimax_safe":
-        key = lambda x: (x.worst_cost, x.mean_cost, _action_tie_key(x))
+        key = lambda x: (x.worst_exact, x.mean_exact, _action_tie_key(x))
     elif mode == "mean_first":
-        key = lambda x: (x.mean_cost, x.worst_cost, _action_tie_key(x))
+        key = lambda x: (x.mean_exact, x.worst_exact, _action_tie_key(x))
     else:
         raise ValueError("mode must be 'minimax_safe' or 'mean_first'")
     return min(labels, key=key)
@@ -273,26 +255,32 @@ def select_frontier_label(
 def solve_pareto_hndt(
     model: CostModel,
     fault_weights: Optional[Sequence[float]] = None,
-    tie_tolerance: float = 1e-12,
+    tie_tolerance: float = 0.0,
     collect_stats: bool = False,
+    *,
+    split_filter: Optional[SplitFilter] = None,
+    terminal_filter: Optional[TerminalFilter] = None,
 ) -> ParetoHNDTResult:
-    """Compute the exact Pareto frontier for HNDT's stop-or-split strategy space.
+    """Compute the exact Pareto frontier for a stop-or-split strategy space.
 
-    The straightforward algorithm is output-sensitive.  If ``P`` is the
-    largest interval-frontier size, candidate generation is O(n^3 P^2) in the
-    worst case before dominance pruning; storage is O(n^2 P).
+    ``split_filter`` and ``terminal_filter`` are restriction hooks used only by
+    fair mechanism ablations.  The proposal leaves both unset and therefore
+    searches the complete HNDT action space.
+
+    If ``P`` is the largest interval-frontier size, candidate generation remains
+    O(n^3 P^2).  Each interval frontier is pruned in O(C log C) time for ``C``
+    generated candidates, rather than by a quadratic all-pairs dominance scan.
     """
 
-    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
-        raise ValueError("tie_tolerance must be non-negative and not NaN")
+    _validate_legacy_tolerance(tie_tolerance)
 
     n = model.n
-    weights = normalize_fault_weights(n, fault_weights)
-    prefix = [0.0]
-    for weight in weights:
+    exact_weights = normalize_weight_fractions(n, fault_weights)
+    prefix = [Fraction(0, 1)]
+    for weight in exact_weights:
         prefix.append(prefix[-1] + weight)
 
-    def mass(i: int, j: int) -> float:
+    def mass(i: int, j: int) -> Fraction:
         return prefix[j] - prefix[i]
 
     frontier: Dict[Interval, Tuple[ParetoLabel, ...]] = {}
@@ -305,14 +293,17 @@ def solve_pareto_hndt(
             interval_mass = mass(i, j)
 
             for backend, raw_cost in model.backends(i, j).items():
-                cost = float(raw_cost)
-                if not isfinite(cost):
+                if terminal_filter is not None and not terminal_filter(i, j, backend):
+                    continue
+                try:
+                    cost = as_fraction(raw_cost)
+                except ValueError:
                     continue
                 candidates.append(
                     ParetoLabel(
                         interval=(i, j),
-                        worst_cost=cost,
-                        mean_cost=interval_mass * cost,
+                        worst_exact=cost,
+                        mean_exact=interval_mass * cost,
                         max_rounds=0,
                         action=Action.settle(backend),
                     )
@@ -320,8 +311,11 @@ def solve_pareto_hndt(
 
             if length > 1:
                 for k in range(i + 1, j):
-                    q = model.checked_query_cost(i, j, k)
-                    if not isfinite(q):
+                    if split_filter is not None and not split_filter(i, j, k):
+                        continue
+                    try:
+                        q = as_fraction(model.checked_query_cost(i, j, k))
+                    except ValueError:
                         continue
                     left_frontier = frontier.get((i, k), ())
                     right_frontier = frontier.get((k, j), ())
@@ -330,11 +324,11 @@ def solve_pareto_hndt(
                             candidates.append(
                                 ParetoLabel(
                                     interval=(i, j),
-                                    worst_cost=q + max(left.worst_cost, right.worst_cost),
-                                    mean_cost=(
+                                    worst_exact=q + max(left.worst_exact, right.worst_exact),
+                                    mean_exact=(
                                         interval_mass * q
-                                        + left.mean_cost
-                                        + right.mean_cost
+                                        + left.mean_exact
+                                        + right.mean_exact
                                     ),
                                     max_rounds=1 + max(left.max_rounds, right.max_rounds),
                                     action=Action.split_at(k),
@@ -343,8 +337,8 @@ def solve_pareto_hndt(
                                 )
                             )
 
-            current, duplicate_pruned, dominated_pruned, finite_candidates = _prune_nondominated_with_counts(
-                candidates, tie_tolerance=tie_tolerance
+            current, duplicate_pruned, dominated_pruned, finite_candidates = (
+                _prune_nondominated_with_counts(candidates, tie_tolerance=tie_tolerance)
             )
             if stats is not None:
                 stats.intervals += 1
@@ -359,7 +353,7 @@ def solve_pareto_hndt(
             if not current:
                 raise ValueError(
                     f"Interval [{i},{j}] is unsolvable in Pareto-HNDT: no finite "
-                    "settlement and no finite split with solvable children"
+                    "settlement and no allowed finite split with solvable children"
                 )
             frontier[(i, j)] = current
 
@@ -368,7 +362,8 @@ def solve_pareto_hndt(
     policy = reconstruct_policy(selected)
     return ParetoHNDTResult(
         n=n,
-        weights=weights,
+        weights=tuple(float(x) for x in exact_weights),
+        exact_weights=exact_weights,
         frontier=frontier,
         selected=selected,
         policy=policy,
@@ -396,6 +391,8 @@ def frontier_rows(result: ParetoHNDTResult) -> list[dict]:
                 "frontier_id": index,
                 "worst_case_cost": label.worst_cost,
                 "mean_cost": label.mean_cost,
+                "worst_case_cost_exact": str(label.worst_exact),
+                "mean_cost_exact": str(label.mean_exact),
                 "max_rounds": label.max_rounds,
                 "root_action": action.kind,
                 "root_backend": action.backend or "",

@@ -7,15 +7,19 @@ fidelity boundary in `experiments/results/.../literature_baselines.csv`.
 
 ## Optimistic-system localization family
 
-The following three adapters reproduce only the comparable localization rule
+The following five adapters reproduce only the comparable localization rule
 and then use the same measured native CKB-VM atomic adjudicator:
 
-1. **Arbitrum-IVP** — Kalodner et al., USENIX Security 2018. Recursive
+1. **RDoC binary-search dispute** — Canetti, Riva, and Rothblum, 2013.
+   Binary-search localization over committed computation configurations.
+2. **TrueBit verification game** — Teutsch and Reitwießner. Binary search to
+   one disputed execution step.
+3. **Arbitrum-IVP** — Kalodner et al., USENIX Security 2018. Recursive
    challenge bisection to one disputed transition.
-2. **opML Phase-1** — Conway et al., 2024. Operator-level bisection; the
+4. **opML Phase-1** — Conway et al., 2024. Operator-level bisection; the
    lower-level VM/microinstruction phase is excluded because this artifact does
    not measure that trace.
-3. **Agatha-GPP chain projection** — Zheng et al., 2021. GPP restricted to the
+5. **Agatha-GPP chain projection** — Zheng et al., 2021. GPP restricted to the
    ordered-chain case; general-DAG/XCE machinery is excluded.
 
 On the present ordered trace these can induce the same midpoint tree, so the
@@ -24,8 +28,8 @@ provenance and individual summaries.
 
 ## Classical optimal-tree baselines
 
-Two additional paper-backed baselines test whether Pareto-HNDT gains are merely
-an artifact of comparing against naive midpoint search.
+Three additional paper-backed baselines test whether Pareto-HNDT gains are merely
+an artifact of comparing against naive midpoint search or unrestricted tree height.
 
 ### Alphabetic Minimax Tree objective adaptation
 
@@ -55,6 +59,17 @@ artifact uses uniform fault weights by default, so no fault-frequency model is
 invented. An independent interval DP is used rather than copying the historical
 construction algorithm.
 
+
+### Height-limited alphabetic mean objective adaptation
+
+**Source:** L. L. Larmore and T. M. Przytycka, *A Fast Algorithm for Optimum
+Height-Limited Alphabetic Binary Trees*, SIAM Journal on Computing 23(6), 1994,
+DOI 10.1137/S0097539792231167.
+
+The repository independently solves the corresponding fixed-leaf weighted-path
+objective under an explicit maximum split depth.  This is useful when comparing
+expected dispute cost under the same interaction-depth budget.
+
 ## zk-OPML operator-dispute baseline
 
 **Source:** Vid Keršič and Muhamed Turkanović, *zk-OPML: Using zero-knowledge
@@ -81,9 +96,11 @@ minimax optimum. No weighted-sum scalarization parameter is introduced.
 The experiment also reports:
 
 - scalar HNDT (minimax only) — removes the new secondary objective;
-- adaptive split + atomic stop — removes adaptive stopping;
-- midpoint split + adaptive stop — removes adaptive split placement;
-- midpoint atomic literature family — removes both adaptive mechanisms;
+- **Pareto adaptive split + atomic stop** — removes adaptive stopping while keeping the same minimax-safe secondary objective;
+- **Pareto midpoint split + adaptive stop** — removes adaptive split placement while keeping the same objective;
+- **Pareto midpoint + atomic stop** — removes both mechanisms while keeping the same objective;
+- legacy scalar versions of the same restrictions for backward comparison;
+- midpoint atomic literature family — paper-backed binary-search localization;
 - Pareto mean-first endpoint — shows the worst/mean trade-off if minimax safety
   is deliberately relaxed;
 - oracle best fixed-`g` and requested fixed-`g` policies;
@@ -92,3 +109,12 @@ The experiment also reports:
 The key machine-readable outputs are `summary.csv`, `proposal_ablation.csv`,
 `pareto_frontier.csv`, `literature_individual_summary.csv`, and
 `literature_baselines.csv`.
+
+
+## Exact arithmetic and compositional-theory check
+
+Pareto objective pairs are compared with exact rational arithmetic; no epsilon is
+used for equality or dominance.  Pareto pruning uses a sorted two-dimensional
+antichain scan.  `python experiments/run_theory_checks.py` exports the small
+ancestor-slack counterexample showing why retaining only the locally minimax
+child label is not compositionally sufficient.
