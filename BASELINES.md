@@ -1,120 +1,110 @@
 # Paper-grounded comparison policies
 
-All reported methods use the same CellVG trace and measured cost tables. The
-repository does **not** pretend to reproduce complete external systems when the
-required chain/runtime measurements are absent. Each adapter exposes a precise
-fidelity boundary in `experiments/results/.../literature_baselines.csv`.
+The proposal core is **Pareto-DPS**, not a CKB-specific optimizer. Baselines are executed against the same ordered trace and admissible cost oracle, but every row is labelled by its actual fidelity. The repository never fabricates missing protocol levels or substitutes one verifier type for another.
 
-## Optimistic-system localization family
+See [BASELINE_FIDELITY.md](BASELINE_FIDELITY.md) for the machine-enforced fidelity rules.
 
-The following five adapters reproduce only the comparable localization rule
-and then use the same measured native CKB-VM atomic adjudicator:
+## Binary-localization projections
 
-1. **RDoC binary-search dispute** — Canetti, Riva, and Rothblum, 2013.
-   Binary-search localization over committed computation configurations.
-2. **TrueBit verification game** — Teutsch and Reitwießner. Binary search to
-   one disputed execution step.
-3. **Arbitrum-IVP** — Kalodner et al., USENIX Security 2018. Recursive
-   challenge bisection to one disputed transition.
-4. **opML Phase-1** — Conway et al., 2024. Operator-level bisection; the
-   lower-level VM/microinstruction phase is excluded because this artifact does
-   not measure that trace.
-5. **Agatha-GPP chain projection** — Zheng et al., 2021. GPP restricted to the
-   ordered-chain case; general-DAG/XCE machinery is excluded.
+The following papers provide binary localization structures that can be projected onto an ordered trace when an atomic terminal action with capability `one-step` is available:
 
-On the present ordered trace these can induce the same midpoint tree, so the
-main table deduplicates them as one prior-work family while preserving separate
-provenance and individual summaries.
+1. **RDoC** — Canetti, Riva, and Rothblum, 2013.
+2. **TrueBit** — Teutsch and Reitwießner.
+3. **Arbitrum** — Kalodner et al., USENIX Security 2018.
 
-## Classical optimal-tree baselines
+On the current ordered trace these projections can induce the same binary tree. The main table therefore deduplicates them into one prior-work binary-localization family while preserving separate provenance rows.
 
-Three additional paper-backed baselines test whether Pareto-HNDT gains are merely
-an artifact of comparing against naive midpoint search or unrestricted tree height.
+These are structural projections only. Refereed-server assumptions, staking, incentives, assertion protocols, chain economics, and other system-specific mechanisms are not assigned synthetic costs.
 
-### Alphabetic Minimax Tree objective adaptation
+## opML
 
-**Source:** David G. Kirkpatrick and Maria M. Klawe, *Alphabetic Minimax
-Trees*, SIAM Journal on Computing 14(3), 1985, DOI 10.1137/0214039.
+The implementation now distinguishes two different comparison levels.
 
-Under forced atomic leaves and constant query cost `q`, a fault at transition
-`t` costs
+### Single-phase opML
+
+The one-phase protocol bisects **VM microinstructions** until one instruction remains. The adapter executes only when
+
+```text
+trace_granularity = vm-microinstruction
+```
+
+and a `one-step` terminal action is available. An operator-level trace is rejected rather than silently relabelled as one-phase opML.
+
+### Outer-phase projection
+
+For an operator/high-level trace, the repository can report
+
+```text
+opML outer-phase operator projection (not full two-phase opML)
+```
+
+This reproduces only the outer/high-level localization structure. The inner VM-microinstruction phase is explicitly excluded unless corresponding data are supplied.
+
+## Agatha
+
+Agatha is reported only as
+
+```text
+Agatha GPP ordered-chain projection (not full DAG GPP)
+```
+
+because the current optimizer works on ordered executions. The general DAG graph-pinpoint protocol and XCE machinery are not claimed to be reproduced.
+
+## Classical exact-objective baselines
+
+### Kirkpatrick-Klawe alphabetic minimax
+
+Under forced atomic leaves and constant query cost `q`, fault `t` pays
 
 ```text
 A_t + q * d_t
 ```
 
-where `d_t` is its tree depth. For `q>0`, minimizing the maximum is exactly the
-paper's `max_t(w_t + d_t)` objective after setting `w_t=A_t/q`. The repository
-solves the identical objective independently using its exact interval DP.
+so the objective is exactly the alphabetic minimax objective after rescaling. The artifact checks the required assumptions and solves the objective by an independent exact interval DP.
 
-### Hu-Tucker weighted-path objective adaptation
+### Hu-Tucker weighted path length
 
-**Source:** T. C. Hu and A. C. Tucker, *Optimal Computer Search Trees and
-Variable-Length Alphabetical Codes*, SIAM Journal on Applied Mathematics
-21(4), 1971, DOI 10.1137/0121057.
+Under the same fixed-leaf/constant-query assumptions, weighted expected dispute cost differs from weighted path length only by a tree-independent terminal term. The adapter therefore solves the exact objective reduction.
 
-With forced atomic leaves and constant query cost, minimizing weighted mean
-fault-path cost reduces to minimizing alphabetic weighted path length. The
-artifact uses uniform fault weights by default, so no fault-frequency model is
-invented. An independent interval DP is used rather than copying the historical
-construction algorithm.
+### Height-limited alphabetic mean
 
+The fixed-leaf weighted-path objective is also solved under an explicit maximum split depth, corresponding to the height-limited alphabetic-tree setting.
 
-### Height-limited alphabetic mean objective adaptation
+Small-instance tests independently enumerate all ordered full binary trees and verify the objective values of these classical adapters.
 
-**Source:** L. L. Larmore and T. M. Przytycka, *A Fast Algorithm for Optimum
-Height-Limited Alphabetic Binary Trees*, SIAM Journal on Computing 23(6), 1994,
-DOI 10.1137/S0097539792231167.
+## zk-OPML
 
-The repository independently solves the corresponding fixed-leaf weighted-path
-objective under an explicit maximum split depth.  This is useful when comparing
-expected dispute cost under the same interaction-depth budget.
+The numerical adapter requires an explicit atomic terminal action tagged
 
-## zk-OPML operator-dispute baseline
+```text
+zk-proof
+```
 
-**Source:** Vid Keršič and Muhamed Turkanović, *zk-OPML: Using zero-knowledge
-proofs to optimize OPML*, 2026, DOI 10.1007/s44443-026-00573-1.
+for every isolated operator. The backend name is irrelevant. If a required ZK terminal cost is unavailable, the baseline is skipped. Native/replay costs are never inserted into a ZK-labelled row.
 
-The paper's comparable structure is binary operator localization followed by a
-ZK proof of the isolated ONNX operator. This adapter is run **only** when every
-atomic interval has an independently reproduced finite `zkvm` cost. Otherwise
-it is explicitly marked skipped; native verification is never substituted into
-a row labelled ZK.
+The row is labelled as an operator-localization/ZK-terminal projection unless all other claimed protocol costs are also reproduced.
 
 ## Proposal and ablations
 
-The revised proposal is **Pareto-HNDT (minimax-safe)**. It computes the exact
-nondominated frontier of
+**Pareto-DPS (minimax-safe)** computes the exact nondominated antichain of
 
 ```text
-(worst-case fault-path cost, uniform-mean fault-path cost)
+(worst-case path cost, weighted expectation mass)
 ```
 
-and then minimizes mean cost subject to preserving the exact scalar HNDT
-minimax optimum. No weighted-sum scalarization parameter is introduced.
+and lexicographically minimizes worst-case cost first, expected cost second. At the root, expectation mass equals ordinary expected cost.
 
-The experiment also reports:
+The binary CKB experiment also reports:
 
-- scalar HNDT (minimax only) — removes the new secondary objective;
-- **Pareto adaptive split + atomic stop** — removes adaptive stopping while keeping the same minimax-safe secondary objective;
-- **Pareto midpoint split + adaptive stop** — removes adaptive split placement while keeping the same objective;
-- **Pareto midpoint + atomic stop** — removes both mechanisms while keeping the same objective;
-- legacy scalar versions of the same restrictions for backward comparison;
-- midpoint atomic literature family — paper-backed binary-search localization;
-- Pareto mean-first endpoint — shows the worst/mean trade-off if minimax safety
-  is deliberately relaxed;
-- oracle best fixed-`g` and requested fixed-`g` policies;
-- heterogeneity and round-budget diagnostics.
+- scalar binary DPS/HNDT minimax;
+- Pareto adaptive split + atomic stop;
+- Pareto midpoint split + adaptive stop;
+- Pareto midpoint + atomic stop;
+- legacy scalar restrictions;
+- Pareto mean-first endpoint;
+- fixed-granularity controls;
+- round-budget, heterogeneity, prior, noise, and scaling diagnostics.
 
-The key machine-readable outputs are `summary.csv`, `proposal_ablation.csv`,
-`pareto_frontier.csv`, `literature_individual_summary.csv`, and
-`literature_baselines.csv`.
+## Exact arithmetic
 
-
-## Exact arithmetic and compositional-theory check
-
-Pareto objective pairs are compared with exact rational arithmetic; no epsilon is
-used for equality or dominance.  Pareto pruning uses a sorted two-dimensional
-antichain scan.  `python experiments/run_theory_checks.py` exports the small
-ancestor-slack counterexample showing why retaining only the locally minimax
-child label is not compositionally sufficient.
+All Pareto decisions and the scalar/reference minimax decisions use exact rational arithmetic. Historical tolerance arguments are accepted only for API compatibility and do not determine scientific objective equality.

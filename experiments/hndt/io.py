@@ -119,7 +119,7 @@ def load_config(path: str | Path) -> dict:
     return data
 
 
-def build_model(
+def build_ckb_model(
     trace_path: str | Path,
     interval_path: str | Path,
     query_path: str | Path,
@@ -166,7 +166,41 @@ def build_model(
         del i, j, k
         return q_value
 
-    return CostModel(n=n, terminal_costs=terminal, query_cost=q)
+    capabilities = {
+        "native": frozenset({"replay", "one-step"}),
+        "zkvm": frozenset({"zk-proof"}),
+    }
+    metadata = {
+        "platform": "ckb-vm",
+        "cost_unit": "cycles",
+        "query_authentication": "merkle",
+        "trace_granularity": "operator",
+        "merkle_leaf_count": merkle_leaf_count,
+        "merkle_depth": required_depth,
+    }
+    return CostModel(
+        n=n,
+        terminal_costs=terminal,
+        query_cost=q,
+        terminal_capabilities=capabilities,
+        metadata=metadata,
+        backend_priority={"native": 0, "zkvm": 1},
+    )
+
+
+def build_model(
+    trace_path: str | Path,
+    interval_path: str | Path,
+    query_path: str | Path,
+    config_path: str | Path,
+) -> CostModel:
+    """Backward-compatible alias for the CKB-VM measurement adapter.
+
+    New platform-independent experiments should use
+    :func:`hndt.generic_io.build_verification_instance`.
+    """
+
+    return build_ckb_model(trace_path, interval_path, query_path, config_path)
 
 
 def validate_atomic_coverage(model: CostModel) -> List[Tuple[int, int]]:

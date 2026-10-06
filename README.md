@@ -1,3 +1,20 @@
+# Pareto-DPS / CellVG research artifact
+
+> **Current architecture.** The proposal core is now **Pareto-DPS**, a platform-independent exact dispute-policy synthesizer over generic terminal and finite-partition query actions. **CKB-VM/CellVG is a measured adapter and case study, not a requirement of the method.** See [PARETO_DPS_CODE_CHANGELOG.md](PARETO_DPS_CODE_CHANGELOG.md), [GENERIC_DPS_SCHEMA.md](GENERIC_DPS_SCHEMA.md), and [BASELINE_FIDELITY.md](BASELINE_FIDELITY.md).
+
+For a non-CKB smoke test, run:
+
+```bash
+python experiments/run_generic_instance.py \
+  --trace experiments/data/generic_demo/trace.csv \
+  --terminal-actions experiments/data/generic_demo/terminal_actions.csv \
+  --query-actions experiments/data/generic_demo/query_actions.csv \
+  --metadata experiments/data/generic_demo/metadata.json \
+  --out experiments/results/generic_demo
+```
+
+---
+
 # CellVG / HNDT artifact
 
 This repository contains the **Pareto-HNDT** optimizer, the original scalar HNDT

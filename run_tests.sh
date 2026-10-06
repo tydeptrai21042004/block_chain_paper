@@ -31,6 +31,15 @@ TMP_OUT="${TMPDIR:-/tmp}/cellvg_hndt_demo_smoke_$$"
 trap 'rm -rf "$TMP_OUT"' EXIT
 python3 experiments/run_experiment.py --demo --out "$TMP_OUT" --collect-pareto-stats >/dev/null
 python3 experiments/run_campaign.py --campaign experiments/config/campaign_demo.json --out "$TMP_OUT/campaign" >/dev/null
+python3 experiments/run_generic_instance.py \
+  --trace experiments/data/generic_demo/trace.csv \
+  --terminal-actions experiments/data/generic_demo/terminal_actions.csv \
+  --query-actions experiments/data/generic_demo/query_actions.csv \
+  --metadata experiments/data/generic_demo/metadata.json \
+  --out "$TMP_OUT/generic" >/dev/null
+python3 experiments/run_cost_regimes.py \
+  --n 6 --heterogeneity 0,1 --query-ratio 0.25,1 \
+  --out "$TMP_OUT/cost_regimes" >/dev/null
 
-echo "All unit tests, trace-vector checks, and synthetic integration/campaign smoke tests passed."
+echo "All unit tests, trace-vector checks, CKB adapter smoke tests, and generic Pareto-DPS smoke tests passed."
 echo "The smoke test uses synthetic data only and does not modify manuscript result tables."

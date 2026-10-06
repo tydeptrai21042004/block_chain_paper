@@ -129,13 +129,9 @@ def _action_tie_key(label: ParetoLabel) -> tuple:
     act = label.action
     if act.kind == "settle":
         backend = act.backend or ""
-        return (
-            label.max_rounds,
-            0,
-            0 if backend == "native" else 1,
-            backend,
-            -1,
-        )
+        # Action identifiers are opaque to the optimizer; lexical order is a
+        # platform-neutral tertiary tie-break only.
+        return (label.max_rounds, 0, backend, -1)
     split = -1 if act.split is None else int(act.split)
     i, j = label.interval
     # Compare twice the distance to the midpoint using integers.

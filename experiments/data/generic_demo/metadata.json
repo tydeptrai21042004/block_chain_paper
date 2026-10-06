@@ -1,0 +1,6 @@
+{
+  "platform": "generic-runtime-example",
+  "cost_unit": "microseconds",
+  "trace_granularity": "primitive-transition",
+  "note": "Demonstrates that Pareto-DPS does not require CKB-specific fields."
+}

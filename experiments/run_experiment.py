@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 
 from hndt.baselines import (
     direct_native_policy,
+    direct_verification_policy,
     fixed_g_policy,
     height_limited_mean_atomic_policy,
     midpoint_adaptive_stop_policy,
@@ -24,6 +25,7 @@ from hndt.baselines import (
 )
 from hndt.core import CostModel, solve_hndt, solve_hndt_round_budget
 from hndt.evaluate import evaluate_policy, summarize, weighted_mean_cost
+from hndt.dps import from_cost_model, dps_to_legacy_policy, solve_pareto_dps
 from hndt.io import build_model, validate_atomic_coverage
 from hndt.literature_baselines import (
     literature_baselines,
@@ -39,14 +41,14 @@ from hndt.reporting import first_split, write_csv, write_fault_paths, write_poli
 from hndt.sensitivity import fault_weight_profile, scale_query_costs
 
 
-PROPOSAL_NAME = "Pareto-HNDT (minimax-safe)"
-SCALAR_HNDT_NAME = "Ablation: scalar HNDT (minimax only)"
-MEAN_FIRST_NAME = "Ablation: Pareto mean-first endpoint"
+PROPOSAL_NAME = "Pareto-DPS (minimax-safe)"
+SCALAR_HNDT_NAME = "Ablation: scalar DPS/HNDT binary minimax"
+MEAN_FIRST_NAME = "Ablation: Pareto-DPS mean-first endpoint"
 
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Run the Pareto-HNDT/CellVG ordered-trace dispute experiment"
+        description="Run platform-neutral Pareto-DPS with the CKB-VM adapter or supplied measurements"
     )
     p.add_argument("--demo", action="store_true", help="Use the bundled LeNet synthetic costs for code sanity checks")
     p.add_argument("--synthetic-data", action="store_true", help="Mark explicitly supplied input files as synthetic/non-manuscript data")
@@ -121,7 +123,12 @@ def homogenized_model(model: CostModel) -> CostModel:
                 )
             new_backends["native"] = homogenized
         terminal[(i, j)] = new_backends
-    return CostModel(model.n, terminal, model.query_cost)
+    return CostModel(
+        model.n, terminal, model.query_cost,
+        terminal_capabilities=model.terminal_capabilities,
+        metadata=model.metadata,
+        backend_priority=model.backend_priority,
+    )
 
 
 def _slug(name: str) -> str:
@@ -175,8 +182,8 @@ def build_literature_groups(model: CostModel, fault_weights=None):
 
     grouped = {}
     for spec, policy in executed:
-        is_midpoint_system = spec.baseline_class in {"optimistic-system", "optimistic-ml"}
-        domain = "midpoint-system-family" if is_midpoint_system else spec.key
+        is_midpoint_system = spec.baseline_class == "binary-localization"
+        domain = "binary-localization-family" if is_midpoint_system else spec.key
         grouped.setdefault((domain, policy_signature(policy)), []).append((spec, policy))
 
     groups = []
@@ -184,9 +191,9 @@ def build_literature_groups(model: CostModel, fault_weights=None):
         specs = [spec for spec, _ in members]
         representative = members[0][1]
         if len(specs) > 1 and all(
-            s.baseline_class in {"optimistic-system", "optimistic-ml"} for s in specs
+            s.baseline_class == "binary-localization" for s in specs
         ):
-            name = f"Prior-work midpoint/pinpoint family ({len(specs)} adapted policies)"
+            name = f"Prior-work binary-localization family ({len(specs)} projections)"
         elif len(specs) > 1:
             name = f"Equivalent literature policy family ({len(specs)} adaptations)"
         else:
@@ -353,14 +360,23 @@ def main():
     # minimax-preserving mean minimization. Uniform fault weights are used, so
     # no learned prior or tunable scalarization coefficient is introduced.
     pareto = solve_pareto_hndt(model, fault_weights=fault_weights, collect_stats=args.collect_pareto_stats)
-    if abs(pareto.worst_optimum - h.optimum) > 1e-9:
+    generic = solve_pareto_dps(from_cost_model(model), fault_weights=fault_weights)
+    if pareto.worst_optimum_exact != h.optimum_exact:
         raise AssertionError(
-            "Pareto-HNDT must recover the scalar HNDT minimax optimum; "
-            f"got {pareto.worst_optimum} vs {h.optimum}"
+            "Pareto refinement must recover the exact scalar minimax optimum; "
+            f"got {pareto.worst_optimum_exact} vs {h.optimum_exact}"
         )
+    if (
+        generic.worst_optimum_exact != pareto.worst_optimum_exact
+        or generic.expected_at_worst_exact != pareto.mean_at_worst_optimum_exact
+    ):
+        raise AssertionError(
+            "generic Pareto-DPS and the legacy binary specialization disagree"
+        )
+    proposal_policy = dps_to_legacy_policy(generic.selected)
 
     policies = {
-        PROPOSAL_NAME: pareto.policy,
+        PROPOSAL_NAME: proposal_policy,
         SCALAR_HNDT_NAME: h.action,
         MEAN_FIRST_NAME: mean_first_policy(pareto),
     }
@@ -440,18 +456,18 @@ def main():
 
     optional_status = []
     try:
-        name = "Ablation: direct full native"
-        policies[name] = direct_native_policy(model)
+        name = "Ablation: direct full verification"
+        policies[name] = direct_verification_policy(model)
         categories[name] = "extreme internal ablation"
         optional_status.append({"strategy": name, "status": "executed", "reason": ""})
     except ValueError as exc:
         optional_status.append(
-            {"strategy": "Ablation: direct full native", "status": "skipped", "reason": str(exc)}
+            {"strategy": "Ablation: direct full verification", "status": "skipped", "reason": str(exc)}
         )
 
     if args.round_budget is not None:
         rb = solve_hndt_round_budget(model, args.round_budget)
-        name = f"Ablation: scalar HNDT round budget R={args.round_budget}"
+        name = f"Ablation: scalar binary DPS round budget R={args.round_budget}"
         policies[name] = rb.action
         categories[name] = "latency ablation"
 
@@ -465,9 +481,9 @@ def main():
     proposal_mean = _mean(paths[PROPOSAL_NAME], fault_weights)
     scalar_mean = _mean(paths[SCALAR_HNDT_NAME], fault_weights)
     if abs(proposal_worst - scalar_worst) > 1e-9:
-        raise AssertionError("Pareto-HNDT changed the exact minimax optimum")
+        raise AssertionError("Pareto-DPS changed the exact minimax optimum")
     if proposal_mean > scalar_mean + 1e-9:
-        raise AssertionError("Pareto-HNDT must not worsen mean cost among minimax-optimal policies")
+        raise AssertionError("Pareto-DPS must not worsen expected cost among minimax-optimal policies")
     if abs(proposal_mean - pareto.mean_at_worst_optimum) > 1e-8:
         raise AssertionError(
             "evaluated weighted mean must match Pareto objective: "
@@ -484,7 +500,9 @@ def main():
         summaries.append(row)
     write_csv(out / "summary.csv", summaries)
     write_fault_paths(out / "fault_costs.csv", paths, fault_weights=fault_weights)
-    write_policy_json(out / "pareto_hndt_policy.json", pareto.policy)
+    write_policy_json(out / "pareto_dps_policy.json", proposal_policy)
+    # Backward-compatible filename for older paper scripts.
+    write_policy_json(out / "pareto_hndt_policy.json", proposal_policy)
     write_policy_json(out / "hndt_scalar_policy.json", h.action)
     write_policy_json(out / "pareto_mean_first_policy.json", policies[MEAN_FIRST_NAME])
     write_csv(out / "pareto_frontier.csv", pareto_frontier_rows(pareto))
@@ -676,12 +694,13 @@ def main():
         },
     ]
     write_csv(out / "heterogeneity_ablation.csv", ablation)
+    write_policy_json(out / "pareto_dps_policy_homogenized.json", ph.policy)
     write_policy_json(out / "pareto_hndt_policy_homogenized.json", ph.policy)
     write_policy_json(out / "hndt_scalar_policy_homogenized.json", hh.action)
 
     gain_rows = [
         {
-            "comparison": "Pareto-HNDT vs scalar HNDT",
+            "comparison": "Pareto-DPS vs scalar binary DPS",
             "pareto_worst": proposal_worst,
             "scalar_worst": scalar_worst,
             "worst_improvement": scalar_worst - proposal_worst,
@@ -692,7 +711,7 @@ def main():
                 100.0 * (scalar_mean - proposal_mean) / scalar_mean if scalar_mean else 0.0
             ),
             "guarantee": (
-                "worst costs must be equal; Pareto mean must be <= scalar-HNDT mean"
+                "worst costs must be equal; Pareto expected cost must be <= scalar minimax expected cost"
             ),
         }
     ]
@@ -709,6 +728,11 @@ def main():
         "fault_weight_profile": args.fault_weights,
         "fault_weights": list(fault_weights),
         "proposal": PROPOSAL_NAME,
+        "platform_adapter": model.metadata.get("platform", "user-supplied"),
+        "cost_unit": model.metadata.get("cost_unit", "arbitrary"),
+        "proposal_core": "platform-independent finite-partition Pareto-DPS",
+        "pareto_dps_worst_optimum": pareto.worst_optimum,
+        "pareto_dps_expected_at_optimum": pareto.mean_at_worst_optimum,
         "pareto_hndt_worst_optimum": pareto.worst_optimum,
         "pareto_hndt_mean_at_optimum": pareto.mean_at_worst_optimum,
         "pareto_root_frontier_size": len(pareto.root_frontier),
@@ -746,9 +770,10 @@ def main():
             }
         ),
         "method_note": (
-            "Pareto-HNDT computes the exact nondominated frontier of worst-case and weighted-mean "
-            "fault-path cost, then preserves the exact scalar HNDT minimax optimum while minimizing "
-            "mean cost among all minimax-optimal policies. No scalarization hyperparameter is used."
+            "Pareto-DPS is platform independent. It computes the exact nondominated antichain "
+            "of worst-case cost and weighted expectation mass over admissible terminal and query "
+            "actions, then preserves the exact scalar minimax optimum while minimizing expected "
+            "cost inside the minimax-optimal class. The CKB-VM path is only one cost adapter."
         ),
     }
     (out / "run_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")

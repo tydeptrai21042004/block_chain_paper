@@ -1,0 +1,3214 @@
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/BASELINES.md block_chain_paper_work/block_chain_paper-main/BASELINES.md
+--- block_chain_paper_original/block_chain_paper-main/BASELINES.md	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/BASELINES.md	2026-10-06 11:25:21.585369150 +0000
+@@ -1,120 +1,110 @@
+ # Paper-grounded comparison policies
+ 
+-All reported methods use the same CellVG trace and measured cost tables. The
+-repository does **not** pretend to reproduce complete external systems when the
+-required chain/runtime measurements are absent. Each adapter exposes a precise
+-fidelity boundary in `experiments/results/.../literature_baselines.csv`.
+-
+-## Optimistic-system localization family
+-
+-The following five adapters reproduce only the comparable localization rule
+-and then use the same measured native CKB-VM atomic adjudicator:
+-
+-1. **RDoC binary-search dispute** — Canetti, Riva, and Rothblum, 2013.
+-   Binary-search localization over committed computation configurations.
+-2. **TrueBit verification game** — Teutsch and Reitwießner. Binary search to
+-   one disputed execution step.
+-3. **Arbitrum-IVP** — Kalodner et al., USENIX Security 2018. Recursive
+-   challenge bisection to one disputed transition.
+-4. **opML Phase-1** — Conway et al., 2024. Operator-level bisection; the
+-   lower-level VM/microinstruction phase is excluded because this artifact does
+-   not measure that trace.
+-5. **Agatha-GPP chain projection** — Zheng et al., 2021. GPP restricted to the
+-   ordered-chain case; general-DAG/XCE machinery is excluded.
+-
+-On the present ordered trace these can induce the same midpoint tree, so the
+-main table deduplicates them as one prior-work family while preserving separate
+-provenance and individual summaries.
+-
+-## Classical optimal-tree baselines
+-
+-Three additional paper-backed baselines test whether Pareto-HNDT gains are merely
+-an artifact of comparing against naive midpoint search or unrestricted tree height.
++The proposal core is **Pareto-DPS**, not a CKB-specific optimizer. Baselines are executed against the same ordered trace and admissible cost oracle, but every row is labelled by its actual fidelity. The repository never fabricates missing protocol levels or substitutes one verifier type for another.
+ 
+-### Alphabetic Minimax Tree objective adaptation
++See [BASELINE_FIDELITY.md](BASELINE_FIDELITY.md) for the machine-enforced fidelity rules.
+ 
+-**Source:** David G. Kirkpatrick and Maria M. Klawe, *Alphabetic Minimax
+-Trees*, SIAM Journal on Computing 14(3), 1985, DOI 10.1137/0214039.
++## Binary-localization projections
+ 
+-Under forced atomic leaves and constant query cost `q`, a fault at transition
+-`t` costs
++The following papers provide binary localization structures that can be projected onto an ordered trace when an atomic terminal action with capability `one-step` is available:
++
++1. **RDoC** — Canetti, Riva, and Rothblum, 2013.
++2. **TrueBit** — Teutsch and Reitwießner.
++3. **Arbitrum** — Kalodner et al., USENIX Security 2018.
++
++On the current ordered trace these projections can induce the same binary tree. The main table therefore deduplicates them into one prior-work binary-localization family while preserving separate provenance rows.
++
++These are structural projections only. Refereed-server assumptions, staking, incentives, assertion protocols, chain economics, and other system-specific mechanisms are not assigned synthetic costs.
++
++## opML
++
++The implementation now distinguishes two different comparison levels.
++
++### Single-phase opML
++
++The one-phase protocol bisects **VM microinstructions** until one instruction remains. The adapter executes only when
+ 
+ ```text
+-A_t + q * d_t
++trace_granularity = vm-microinstruction
+ ```
+ 
+-where `d_t` is its tree depth. For `q>0`, minimizing the maximum is exactly the
+-paper's `max_t(w_t + d_t)` objective after setting `w_t=A_t/q`. The repository
+-solves the identical objective independently using its exact interval DP.
++and a `one-step` terminal action is available. An operator-level trace is rejected rather than silently relabelled as one-phase opML.
+ 
+-### Hu-Tucker weighted-path objective adaptation
++### Outer-phase projection
+ 
+-**Source:** T. C. Hu and A. C. Tucker, *Optimal Computer Search Trees and
+-Variable-Length Alphabetical Codes*, SIAM Journal on Applied Mathematics
+-21(4), 1971, DOI 10.1137/0121057.
++For an operator/high-level trace, the repository can report
+ 
+-With forced atomic leaves and constant query cost, minimizing weighted mean
+-fault-path cost reduces to minimizing alphabetic weighted path length. The
+-artifact uses uniform fault weights by default, so no fault-frequency model is
+-invented. An independent interval DP is used rather than copying the historical
+-construction algorithm.
++```text
++opML outer-phase operator projection (not full two-phase opML)
++```
+ 
++This reproduces only the outer/high-level localization structure. The inner VM-microinstruction phase is explicitly excluded unless corresponding data are supplied.
+ 
+-### Height-limited alphabetic mean objective adaptation
++## Agatha
+ 
+-**Source:** L. L. Larmore and T. M. Przytycka, *A Fast Algorithm for Optimum
+-Height-Limited Alphabetic Binary Trees*, SIAM Journal on Computing 23(6), 1994,
+-DOI 10.1137/S0097539792231167.
++Agatha is reported only as
+ 
+-The repository independently solves the corresponding fixed-leaf weighted-path
+-objective under an explicit maximum split depth.  This is useful when comparing
+-expected dispute cost under the same interaction-depth budget.
++```text
++Agatha GPP ordered-chain projection (not full DAG GPP)
++```
+ 
+-## zk-OPML operator-dispute baseline
++because the current optimizer works on ordered executions. The general DAG graph-pinpoint protocol and XCE machinery are not claimed to be reproduced.
+ 
+-**Source:** Vid Keršič and Muhamed Turkanović, *zk-OPML: Using zero-knowledge
+-proofs to optimize OPML*, 2026, DOI 10.1007/s44443-026-00573-1.
++## Classical exact-objective baselines
+ 
+-The paper's comparable structure is binary operator localization followed by a
+-ZK proof of the isolated ONNX operator. This adapter is run **only** when every
+-atomic interval has an independently reproduced finite `zkvm` cost. Otherwise
+-it is explicitly marked skipped; native verification is never substituted into
+-a row labelled ZK.
++### Kirkpatrick-Klawe alphabetic minimax
+ 
+-## Proposal and ablations
++Under forced atomic leaves and constant query cost `q`, fault `t` pays
++
++```text
++A_t + q * d_t
++```
++
++so the objective is exactly the alphabetic minimax objective after rescaling. The artifact checks the required assumptions and solves the objective by an independent exact interval DP.
++
++### Hu-Tucker weighted path length
++
++Under the same fixed-leaf/constant-query assumptions, weighted expected dispute cost differs from weighted path length only by a tree-independent terminal term. The adapter therefore solves the exact objective reduction.
++
++### Height-limited alphabetic mean
++
++The fixed-leaf weighted-path objective is also solved under an explicit maximum split depth, corresponding to the height-limited alphabetic-tree setting.
++
++Small-instance tests independently enumerate all ordered full binary trees and verify the objective values of these classical adapters.
+ 
+-The revised proposal is **Pareto-HNDT (minimax-safe)**. It computes the exact
+-nondominated frontier of
++## zk-OPML
++
++The numerical adapter requires an explicit atomic terminal action tagged
+ 
+ ```text
+-(worst-case fault-path cost, uniform-mean fault-path cost)
++zk-proof
+ ```
+ 
+-and then minimizes mean cost subject to preserving the exact scalar HNDT
+-minimax optimum. No weighted-sum scalarization parameter is introduced.
++for every isolated operator. The backend name is irrelevant. If a required ZK terminal cost is unavailable, the baseline is skipped. Native/replay costs are never inserted into a ZK-labelled row.
++
++The row is labelled as an operator-localization/ZK-terminal projection unless all other claimed protocol costs are also reproduced.
++
++## Proposal and ablations
+ 
+-The experiment also reports:
++**Pareto-DPS (minimax-safe)** computes the exact nondominated antichain of
++
++```text
++(worst-case path cost, weighted expectation mass)
++```
+ 
+-- scalar HNDT (minimax only) — removes the new secondary objective;
+-- **Pareto adaptive split + atomic stop** — removes adaptive stopping while keeping the same minimax-safe secondary objective;
+-- **Pareto midpoint split + adaptive stop** — removes adaptive split placement while keeping the same objective;
+-- **Pareto midpoint + atomic stop** — removes both mechanisms while keeping the same objective;
+-- legacy scalar versions of the same restrictions for backward comparison;
+-- midpoint atomic literature family — paper-backed binary-search localization;
+-- Pareto mean-first endpoint — shows the worst/mean trade-off if minimax safety
+-  is deliberately relaxed;
+-- oracle best fixed-`g` and requested fixed-`g` policies;
+-- heterogeneity and round-budget diagnostics.
++and lexicographically minimizes worst-case cost first, expected cost second. At the root, expectation mass equals ordinary expected cost.
+ 
+-The key machine-readable outputs are `summary.csv`, `proposal_ablation.csv`,
+-`pareto_frontier.csv`, `literature_individual_summary.csv`, and
+-`literature_baselines.csv`.
++The binary CKB experiment also reports:
+ 
++- scalar binary DPS/HNDT minimax;
++- Pareto adaptive split + atomic stop;
++- Pareto midpoint split + adaptive stop;
++- Pareto midpoint + atomic stop;
++- legacy scalar restrictions;
++- Pareto mean-first endpoint;
++- fixed-granularity controls;
++- round-budget, heterogeneity, prior, noise, and scaling diagnostics.
+ 
+-## Exact arithmetic and compositional-theory check
++## Exact arithmetic
+ 
+-Pareto objective pairs are compared with exact rational arithmetic; no epsilon is
+-used for equality or dominance.  Pareto pruning uses a sorted two-dimensional
+-antichain scan.  `python experiments/run_theory_checks.py` exports the small
+-ancestor-slack counterexample showing why retaining only the locally minimax
+-child label is not compositionally sufficient.
++All Pareto decisions and the scalar/reference minimax decisions use exact rational arithmetic. Historical tolerance arguments are accepted only for API compatibility and do not determine scientific objective equality.
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/BASELINE_FIDELITY.md block_chain_paper_work/block_chain_paper-main/BASELINE_FIDELITY.md
+--- block_chain_paper_original/block_chain_paper-main/BASELINE_FIDELITY.md	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/BASELINE_FIDELITY.md	2026-10-06 11:24:24.417968671 +0000
+@@ -0,0 +1,18 @@
++# Baseline fidelity rules
++
++Numerical rows are separated by what is actually reproduced.
++
++| Baseline | Executable condition | Fidelity label |
++|---|---|---|
++| RDoC | ordered trace + atomic `one-step` terminal action | structural projection |
++| TrueBit | ordered trace + atomic `one-step` terminal action | structural projection |
++| Arbitrum | ordered trace + atomic `one-step` terminal action | structural projection |
++| opML single-phase | trace granularity is VM microinstruction + `one-step` terminal action | faithful localization level |
++| opML outer phase | ordered operator/high-level trace | outer-phase projection only |
++| Agatha GPP | ordered chain only | chain projection only |
++| Kirkpatrick-Klawe | forced atomic leaves + constant finite query cost | exact objective reduction |
++| Hu-Tucker | forced atomic leaves + constant finite query cost | exact objective reduction |
++| Height-limited alphabetic | forced atomic leaves + constant finite query cost + height bound | exact objective reduction |
++| zk-OPML | atomic operator has explicit `zk-proof`-capable measured terminal cost | operator/ZK-terminal projection |
++
++The artifact never inserts a native-replay number into a missing ZK row and never labels an operator-only opML projection as a full two-phase opML reproduction.
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/GENERIC_DPS_SCHEMA.md block_chain_paper_work/block_chain_paper-main/GENERIC_DPS_SCHEMA.md
+--- block_chain_paper_original/block_chain_paper-main/GENERIC_DPS_SCHEMA.md	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/GENERIC_DPS_SCHEMA.md	2026-10-06 11:24:24.418777782 +0000
+@@ -0,0 +1,60 @@
++# Generic Pareto-DPS input schema
++
++Pareto-DPS itself does not require CKB.
++
++## Trace
++
++CSV with at least:
++
++```csv
++index,name
++0,step_0
++1,step_1
++```
++
++Only `index` is required and must be consecutive `0..n-1`.
++
++## Terminal actions
++
++```csv
++i,j,action_id,cost,capabilities
++0,1,replay,10,one-step;replay
++1,2,proof,7,zk-proof
++```
++
++`action_id` is opaque. `cost` may be any non-negative finite numeric quantity. `capabilities` is optional metadata used by baseline adapters.
++
++## Query actions
++
++```csv
++i,j,action_id,cuts,cost
++0,4,binary_mid,2,3
++0,4,ternary,1;3,4
++```
++
++`cuts` are absolute checkpoint indices. One cut is binary; multiple cuts produce a finite ordered partition.
++
++## Metadata
++
++Optional JSON, for example:
++
++```json
++{
++  "platform": "wasm-runtime",
++  "cost_unit": "fuel",
++  "trace_granularity": "vm-microinstruction"
++}
++```
++
++Metadata never affects Pareto optimality unless a specific baseline explicitly requires a fidelity condition such as trace granularity.
++
++## Run
++
++```bash
++python experiments/run_generic_instance.py \
++  --trace trace.csv \
++  --terminal-actions terminal_actions.csv \
++  --query-actions query_actions.csv \
++  --metadata metadata.json \
++  --out results/generic
++```
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/PARETO_DPS_CODE_CHANGELOG.md block_chain_paper_work/block_chain_paper-main/PARETO_DPS_CODE_CHANGELOG.md
+--- block_chain_paper_original/block_chain_paper-main/PARETO_DPS_CODE_CHANGELOG.md	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/PARETO_DPS_CODE_CHANGELOG.md	2026-10-06 11:24:24.417193703 +0000
+@@ -0,0 +1,134 @@
++# Pareto-DPS code revision
++
++This revision generalizes the proposal so that the optimization core is no longer defined by Nervos CKB, CKB-VM, Merkle authentication, neural networks, or a fixed cost unit. CKB-VM remains a measured adapter/case study.
++
++## 1. Platform-independent proposal core
++
++Added `experiments/hndt/dps.py` with:
++
++- `VerificationInstance` — an ordered deterministic execution with admissible terminal and query actions;
++- `TerminalActionSpec` — opaque action id, exact cost, optional capability tags;
++- `QueryActionSpec` — arbitrary finite ordered partitions using one or more checkpoint cuts;
++- `solve_pareto_dps()` — exact Pareto synthesis over finite partitions;
++- `solve_scalar_dps()` — independent exact minimax reference over the same action space;
++- `reconstruct_dps_policy()` and exact policy evaluation;
++- `from_cost_model()` — backward-compatible adapter from the old binary cost model;
++- `dps_to_legacy_policy()` — conversion for existing reporting/CKB scripts.
++
++The generalized composition for a query action with children `I_1,...,I_m` is implemented as
++
++`W = q + max_r W_r`
++
++`M = P_I q + sum_r M_r`
++
++so the historical binary split is a strict special case.
++
++## 2. Generic input schema
++
++Added `experiments/hndt/generic_io.py` and `experiments/run_generic_instance.py`.
++
++Generic terminal CSV columns:
++
++`i,j,action_id,cost,capabilities`
++
++Generic query CSV columns:
++
++`i,j,action_id,cuts,cost`
++
++The core has no required columns named `native_cycles`, `zk_cycles`, `depth`, or `cycles`.
++
++A runnable non-CKB example is included under `experiments/data/generic_demo/` and uses `microseconds` as its cost unit.
++
++## 3. CKB is now an adapter
++
++`experiments/hndt/io.py` now exposes `build_ckb_model()`; the historical `build_model()` is retained only as a compatibility alias.
++
++The CKB adapter attaches metadata and capabilities:
++
++- `native` -> `replay`, `one-step`;
++- `zkvm` -> `zk-proof`;
++- platform -> `ckb-vm`;
++- cost unit -> `cycles`;
++- authentication -> `merkle`.
++
++The generic solver does not depend on any of these names.
++
++## 4. Exact arithmetic extended to scalar/reference solvers
++
++The scalar minimax solver and round-budget solver now make scientific decisions with `Fraction`, matching the exact Pareto solver. Historical tolerance arguments remain accepted for API compatibility but do not change objective comparisons.
++
++`HNDTResult` now exposes `optimum_exact` and `exact_value` while keeping float reporting fields.
++
++Classical mean/constant-query baselines were also moved to exact comparison logic.
++
++## 5. Capability-based terminal actions
++
++`CostModel` now supports:
++
++- `terminal_capabilities`;
++- `metadata`;
++- `backend_priority`.
++
++Baseline adapters request capabilities such as `one-step` or `zk-proof` instead of requiring literal backend names. A legacy inference shim preserves old fixtures, but new adapters explicitly supply capabilities.
++
++## 6. Corrected paper-backed baselines
++
++### RDoC / TrueBit / Arbitrum
++
++Implemented as an explicitly labelled ordered-trace binary-localization family requiring a one-step terminal capability. These are structural projections only; protocol economics are not fabricated.
++
++### opML
++
++The previous `opML Phase-1` operator-level row was too permissive.
++
++Now:
++
++- `opml_single_phase_policy()` executes only when `trace_granularity` is `vm-microinstruction`/`microinstruction`;
++- on an operator trace it is skipped;
++- `opml_outer_phase_projection_policy()` is a separate, explicitly labelled projection of the high-level phase and is never described as full two-phase opML.
++
++### Agatha
++
++Kept only as `Agatha GPP ordered-chain projection`; the code and provenance explicitly state that it is not a reproduction of the full DAG GPP/XCE system.
++
++### zk-OPML
++
++Requires a `zk-proof` terminal capability on every atomic operator. The backend can have any name; missing reproduced ZK costs cause a clean skip.
++
++### Classical tree objectives
++
++Kirkpatrick-Klawe, Hu-Tucker, and the height-limited alphabetic objective retain mechanically checked assumptions. New tests independently enumerate small ordered trees and verify the objective values.
++
++## 7. Platform-independent cost-regime experiment
++
++Added `experiments/run_cost_regimes.py`.
++
++It sweeps dimensionless terminal-cost heterogeneity and relative query cost without any CKB-specific input, reporting frontier size, minimax-safe expected-cost gain, mean-first worst-cost ratio, and depth.
++
++## 8. Proposal path in the existing CKB experiment
++
++`experiments/run_experiment.py` now:
++
++1. constructs the legacy CKB binary model through the adapter;
++2. solves the proposal through generic Pareto-DPS;
++3. independently solves the legacy binary Pareto specialization;
++4. requires exact equality of the selected `(worst, expected)` objectives;
++5. uses the generic Pareto-DPS policy for the proposal row.
++
++This guards against accidental divergence while preserving all existing CKB data/reporting scripts.
++
++## 9. Validation
++
++`run_tests.sh` now also runs:
++
++- the generic non-CKB instance smoke test;
++- a small platform-independent cost-regime smoke test.
++
++Current validation in this environment:
++
++- 100/100 Python unit tests pass;
++- deterministic Merkle and trace-vector checks pass;
++- CKB/demo campaign smoke tests pass;
++- generic Pareto-DPS smoke test passes;
++- cost-regime smoke test passes;
++- RISC-V contract build is skipped when the required Rust target is unavailable, as before.
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/README.md block_chain_paper_work/block_chain_paper-main/README.md
+--- block_chain_paper_original/block_chain_paper-main/README.md	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/README.md	2026-10-06 11:24:37.457121820 +0000
+@@ -1,3 +1,20 @@
++# Pareto-DPS / CellVG research artifact
++
++> **Current architecture.** The proposal core is now **Pareto-DPS**, a platform-independent exact dispute-policy synthesizer over generic terminal and finite-partition query actions. **CKB-VM/CellVG is a measured adapter and case study, not a requirement of the method.** See [PARETO_DPS_CODE_CHANGELOG.md](PARETO_DPS_CODE_CHANGELOG.md), [GENERIC_DPS_SCHEMA.md](GENERIC_DPS_SCHEMA.md), and [BASELINE_FIDELITY.md](BASELINE_FIDELITY.md).
++
++For a non-CKB smoke test, run:
++
++```bash
++python experiments/run_generic_instance.py \
++  --trace experiments/data/generic_demo/trace.csv \
++  --terminal-actions experiments/data/generic_demo/terminal_actions.csv \
++  --query-actions experiments/data/generic_demo/query_actions.csv \
++  --metadata experiments/data/generic_demo/metadata.json \
++  --out experiments/results/generic_demo
++```
++
++---
++
+ # CellVG / HNDT artifact
+ 
+ This repository contains the **Pareto-HNDT** optimizer, the original scalar HNDT
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/data/generic_demo/metadata.json block_chain_paper_work/block_chain_paper-main/experiments/data/generic_demo/metadata.json
+--- block_chain_paper_original/block_chain_paper-main/experiments/data/generic_demo/metadata.json	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/data/generic_demo/metadata.json	2026-10-06 11:19:41.209118140 +0000
+@@ -0,0 +1,6 @@
++{
++  "platform": "generic-runtime-example",
++  "cost_unit": "microseconds",
++  "trace_granularity": "primitive-transition",
++  "note": "Demonstrates that Pareto-DPS does not require CKB-specific fields."
++}
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/data/generic_demo/query_actions.csv block_chain_paper_work/block_chain_paper-main/experiments/data/generic_demo/query_actions.csv
+--- block_chain_paper_original/block_chain_paper-main/experiments/data/generic_demo/query_actions.csv	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/data/generic_demo/query_actions.csv	2026-10-06 11:19:41.208348218 +0000
+@@ -0,0 +1,12 @@
++i,j,action_id,cuts,cost
++0,2,binary_1,1,1
++1,3,binary_2,2,1
++2,4,binary_3,3,1
++0,3,binary_1,1,1
++0,3,binary_2,2,1
++1,4,binary_2,2,1
++1,4,binary_3,3,1
++0,4,binary_1,1,1
++0,4,binary_2,2,1
++0,4,binary_3,3,1
++0,4,ternary_1_3,1;3,1.5
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/data/generic_demo/terminal_actions.csv block_chain_paper_work/block_chain_paper-main/experiments/data/generic_demo/terminal_actions.csv
+--- block_chain_paper_original/block_chain_paper-main/experiments/data/generic_demo/terminal_actions.csv	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/data/generic_demo/terminal_actions.csv	2026-10-06 11:19:41.206143963 +0000
+@@ -0,0 +1,7 @@
++i,j,action_id,cost,capabilities
++0,1,replay,8,one-step;replay
++1,2,replay,3,one-step;replay
++2,3,replay,10,one-step;replay
++3,4,replay,4,one-step;replay
++0,2,replay,9,replay
++2,4,replay,11,replay
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/data/generic_demo/trace.csv block_chain_paper_work/block_chain_paper-main/experiments/data/generic_demo/trace.csv
+--- block_chain_paper_original/block_chain_paper-main/experiments/data/generic_demo/trace.csv	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/data/generic_demo/trace.csv	2026-10-06 11:19:41.205395449 +0000
+@@ -0,0 +1,5 @@
++index,name
++0,step_0
++1,step_1
++2,step_2
++3,step_3
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/hndt/__init__.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/__init__.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/__init__.py	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/__init__.py	2026-10-06 11:18:58.408100451 +0000
+@@ -1,6 +1,22 @@
+-"""HNDT/CellVG experiment utilities."""
++"""Platform-neutral dispute-policy synthesis utilities.
++
++``Pareto-DPS`` is the general finite-partition formulation.  The historical
++``HNDT``/``CostModel`` names remain available as a binary specialization for
++backwards compatibility and the CKB-VM case study.
++"""
+ 
+ from .core import Action, CostModel, HNDTResult, solve_hndt
++from .dps import (
++    DPSAction,
++    DPSLabel,
++    ParetoDPSResult,
++    QueryActionSpec,
++    TerminalActionSpec,
++    VerificationInstance,
++    from_cost_model,
++    solve_pareto_dps,
++    solve_scalar_dps,
++)
+ from .pareto import ParetoHNDTResult, ParetoLabel, solve_pareto_hndt
+ 
+ __all__ = [
+@@ -9,6 +25,15 @@
+     "HNDTResult",
+     "ParetoLabel",
+     "ParetoHNDTResult",
++    "DPSAction",
++    "DPSLabel",
++    "ParetoDPSResult",
++    "TerminalActionSpec",
++    "QueryActionSpec",
++    "VerificationInstance",
++    "from_cost_model",
+     "solve_hndt",
+     "solve_pareto_hndt",
++    "solve_pareto_dps",
++    "solve_scalar_dps",
+ ]
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/hndt/baselines.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/baselines.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/baselines.py	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/baselines.py	2026-10-06 11:13:02.387778448 +0000
+@@ -1,9 +1,11 @@
+ from __future__ import annotations
+ 
++from fractions import Fraction
+ from math import isfinite
+-from typing import Dict, Optional, Tuple
++from typing import Dict, Iterable, Optional, Tuple
+ 
+ from .core import Action, CostModel
++from .exact import as_fraction, normalize_weight_fractions
+ 
+ Interval = Tuple[int, int]
+ 
+@@ -20,14 +22,26 @@
+     j: int,
+     *,
+     required_backend: Optional[str] = None,
++    required_capabilities: Iterable[str] = (),
+ ) -> Optional[Action]:
+-    backends = model.backends(i, j)
++    """Choose a finite terminal action, optionally by generic capability.
++
++    ``required_backend`` is retained only for backwards compatibility.  New
++    baseline adapters should use ``required_capabilities`` so they are not tied
++    to platform-specific action names.
++    """
++
+     if required_backend is not None:
+-        value = backends.get(required_backend)
++        value = model.backends(i, j).get(required_backend)
+         if value is None or not isfinite(float(value)):
+             return None
++        if required_capabilities and not model.backend_supports(
++            required_backend, required_capabilities
++        ):
++            return None
+         return Action.settle(required_backend)
+-    _, backend = model.best_terminal(i, j)
++
++    _, backend = model.best_terminal_with_capabilities(i, j, required_capabilities)
+     return None if backend is None else Action.settle(backend)
+ 
+ 
+@@ -66,10 +80,10 @@
+ 
+     def build(i: int, j: int) -> None:
+         if j - i == 1:
+-            act = _terminal_action(model, i, j, required_backend="zkvm")
++            act = _terminal_action(model, i, j, required_capabilities={"zk-proof"})
+             if act is None:
+                 raise ValueError(
+-                    f"Atomic interval [{i},{j}] has no finite zkvm terminal cost"
++                    f"Atomic interval [{i},{j}] has no finite terminal action with capability zk-proof"
+                 )
+             policy[(i, j)] = act
+             return
+@@ -122,6 +136,20 @@
+     return True
+ 
+ 
++def has_complete_atomic_capability(
++    model: CostModel, required_capabilities: Iterable[str]
++) -> bool:
++    """Return True iff every atomic interval has a matching terminal action."""
++
++    for i in range(model.n):
++        _, backend = model.best_terminal_with_capabilities(
++            i, i + 1, required_capabilities
++        )
++        if backend is None:
++            return False
++    return True
++
++
+ def optimal_split_atomic_policy(model: CostModel) -> Dict[Interval, Action]:
+     """Exact split optimization with *forced atomic* settlement.
+ 
+@@ -137,48 +165,48 @@
+         (i, i + 1): dict(model.backends(i, i + 1))
+         for i in range(model.n)
+     }
+-    restricted = _CostModel(model.n, terminal, model.query_cost)
++    restricted = _CostModel(
++        model.n,
++        terminal,
++        model.query_cost,
++        terminal_capabilities=model.terminal_capabilities,
++        metadata=model.metadata,
++        backend_priority=model.backend_priority,
++    )
+     return solve_hndt(restricted).action
+ 
+ 
+ def midpoint_adaptive_stop_policy(
+     model: CostModel,
+-    tie_tolerance: float = 1e-12,
++    tie_tolerance: float = 0.0,
+ ) -> Dict[Interval, Action]:
+-    """Midpoint-only localization with exact adaptive stopping.
+-
+-    Each interval can either settle using its cheapest measured backend or split
+-    *only* at the midpoint.  This is the complementary mechanism-isolation
+-    ablation to :func:`optimal_split_atomic_policy`.
+-    """
+-
+-    from math import inf, isfinite, isnan
+-    from .core import policy_reachable_intervals
++    """Midpoint-only localization with exact adaptive stopping."""
+ 
+-    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+-        raise ValueError("tie_tolerance must be non-negative and not NaN")
++    from .core import _validate_legacy_tolerance, policy_reachable_intervals
+ 
+-    value: Dict[Interval, float] = {}
++    _validate_legacy_tolerance(tie_tolerance)
++    value: Dict[Interval, Fraction] = {}
+     actions: Dict[Interval, Action] = {}
+     for length in range(1, model.n + 1):
+         for i in range(0, model.n - length + 1):
+             j = i + length
+-            best, backend = model.best_terminal(i, j)
++            best, backend = model.best_terminal_exact(i, j)
+             best_action = Action.settle(backend) if backend is not None else None
+ 
+             if length > 1:
+                 k = _midpoint(i, j)
+                 left = value[(i, k)]
+                 right = value[(k, j)]
+-                q = model.checked_query_cost(i, j, k)
+-                candidate = q + max(left, right) if all(map(isfinite, [left, right, q])) else inf
+-                # Ties deliberately retain direct settlement because it uses no
+-                # additional interaction round.
+-                if candidate < best - tie_tolerance:
+-                    best = candidate
+-                    best_action = Action.split_at(k)
++                q = model.checked_query_cost_exact(i, j, k)
++                if q is not None:
++                    candidate = q + max(left, right)
++                    # Exact ties retain direct settlement because it uses no
++                    # additional interaction round.
++                    if best is None or candidate < best:
++                        best = candidate
++                        best_action = Action.split_at(k)
+ 
+-            if best_action is None or not isfinite(best):
++            if best_action is None or best is None:
+                 raise ValueError(
+                     f"Midpoint-adaptive-stop policy is infeasible on [{i},{j}]"
+                 )
+@@ -189,8 +217,25 @@
+     return {interval: actions[interval] for interval in reachable}
+ 
+ 
++def direct_verification_policy(
++    model: CostModel,
++    required_capabilities: Iterable[str] = (),
++) -> Dict[Interval, Action]:
++    """Settle the complete trace with the cheapest admissible terminal action."""
++
++    _, backend = model.best_terminal_with_capabilities(
++        0, model.n, required_capabilities
++    )
++    if backend is None:
++        required = ",".join(required_capabilities) or "any"
++        raise ValueError(
++            f"full-trace verification action is unavailable (required={required})"
++        )
++    return {(0, model.n): Action.settle(backend)}
++
++
+ def direct_native_policy(model: CostModel) -> Dict[Interval, Action]:
+-    """Settle the complete trace directly with the measured native backend."""
++    """Backward-compatible CKB helper; new code should use direct_verification_policy."""
+ 
+     raw = model.backends(0, model.n).get("native")
+     if raw is None or not isfinite(float(raw)):
+@@ -198,33 +243,34 @@
+     return {(0, model.n): Action.settle("native")}
+ 
+ 
+-def constant_query_cost(model: CostModel, tie_tolerance: float = 1e-12) -> float:
+-    """Return the common finite split-query cost, or raise if it is not constant.
+-
+-    The classical alphabetic-tree reductions are exact only when each tree edge
+-    has the same additive query cost.  Models built by ``hndt.io.build_model``
+-    satisfy this because they use one Merkle depth for the committed trace.
+-    """
+-
+-    from math import isnan
++def constant_query_cost_exact(model: CostModel) -> Fraction:
++    """Return the common finite query cost exactly, or raise if non-constant."""
+ 
+-    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+-        raise ValueError("tie_tolerance must be non-negative and not NaN")
+-    seen = None
++    seen: Fraction | None = None
+     for span in range(2, model.n + 1):
+         for i in range(0, model.n - span + 1):
+             j = i + span
+             for k in range(i + 1, j):
+-                q = model.checked_query_cost(i, j, k)
+-                if not isfinite(q):
+-                    raise ValueError("classical alphabetic-tree baseline requires finite query costs")
++                q = model.checked_query_cost_exact(i, j, k)
++                if q is None:
++                    raise ValueError(
++                        "classical alphabetic-tree baseline requires finite query costs"
++                    )
+                 if seen is None:
+                     seen = q
+-                elif abs(q - seen) > tie_tolerance:
++                elif q != seen:
+                     raise ValueError(
+                         "classical alphabetic-tree baseline requires a constant query cost"
+                     )
+-    return 0.0 if seen is None else float(seen)
++    return Fraction(0, 1) if seen is None else seen
++
++
++def constant_query_cost(model: CostModel, tie_tolerance: float = 0.0) -> float:
++    """Backward-compatible float view of :func:`constant_query_cost_exact`."""
++
++    from .core import _validate_legacy_tolerance
++    _validate_legacy_tolerance(tie_tolerance)
++    return float(constant_query_cost_exact(model))
+ 
+ 
+ def kirkpatrick_klawe_atomic_policy(model: CostModel) -> Dict[Interval, Action]:
+@@ -245,31 +291,22 @@
+ def optimal_mean_atomic_policy(
+     model: CostModel,
+     fault_weights=None,
+-    tie_tolerance: float = 1e-12,
++    tie_tolerance: float = 0.0,
+ ) -> Dict[Interval, Action]:
+-    """Exact forced-atomic policy minimizing weighted mean fault-path cost.
+-
+-    This is kept independent from Pareto-HNDT so it can serve as an external
+-    objective baseline.  Under constant query cost, fixed atomic leaves, and
+-    weights p_t, the tree-dependent term is q * sum_t p_t d_t, exactly the
+-    optimal alphabetic weighted-path-length objective.
+-    """
+-
+-    from math import inf, isnan
+-    from .pareto import normalize_fault_weights
++    """Exact forced-atomic policy minimizing weighted expected fault-path cost."""
+ 
+-    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+-        raise ValueError("tie_tolerance must be non-negative and not NaN")
++    from .core import _validate_legacy_tolerance
+ 
+-    weights = normalize_fault_weights(model.n, fault_weights)
+-    prefix = [0.0]
++    _validate_legacy_tolerance(tie_tolerance)
++    weights = normalize_weight_fractions(model.n, fault_weights)
++    prefix = [Fraction(0, 1)]
+     for weight in weights:
+         prefix.append(prefix[-1] + weight)
+ 
+-    def mass(i: int, j: int) -> float:
++    def mass(i: int, j: int) -> Fraction:
+         return prefix[j] - prefix[i]
+ 
+-    value: Dict[Interval, float] = {}
++    value: Dict[Interval, Fraction] = {}
+     actions: Dict[Interval, Action] = {}
+     rounds: Dict[Interval, int] = {}
+ 
+@@ -277,42 +314,39 @@
+         for i in range(0, model.n - length + 1):
+             j = i + length
+             if length == 1:
+-                cost, backend = model.best_terminal(i, j)
+-                if backend is None or not isfinite(cost):
++                cost, backend = model.best_terminal_exact(i, j)
++                if backend is None or cost is None:
+                     raise ValueError(f"Atomic interval [{i},{j}] has no terminal backend")
+                 value[(i, j)] = mass(i, j) * cost
+                 actions[(i, j)] = Action.settle(backend)
+                 rounds[(i, j)] = 0
+                 continue
+ 
+-            best = inf
++            best: Fraction | None = None
+             best_action = None
+             best_rounds = 10**9
+-            midpoint = (i + j) / 2.0
+             best_key = None
+             for k in range(i + 1, j):
+-                q = model.checked_query_cost(i, j, k)
+-                if not isfinite(q):
++                q = model.checked_query_cost_exact(i, j, k)
++                if q is None:
+                     continue
+                 candidate = mass(i, j) * q + value[(i, k)] + value[(k, j)]
+                 candidate_rounds = 1 + max(rounds[(i, k)], rounds[(k, j)])
+-                key = (candidate_rounds, abs(k - midpoint), k)
+-                if candidate < best - tie_tolerance or (
+-                    abs(candidate - best) <= tie_tolerance
+-                    and (best_key is None or key < best_key)
++                key = (candidate_rounds, abs(2 * k - (i + j)), k)
++                if best is None or candidate < best or (
++                    candidate == best and (best_key is None or key < best_key)
+                 ):
+                     best = candidate
+                     best_action = Action.split_at(k)
+                     best_rounds = candidate_rounds
+                     best_key = key
+ 
+-            if best_action is None:
++            if best_action is None or best is None:
+                 raise ValueError(f"Mean-optimal atomic policy is infeasible on [{i},{j}]")
+             value[(i, j)] = best
+             actions[(i, j)] = best_action
+             rounds[(i, j)] = best_rounds
+ 
+-    # All intervals can be retained; evaluate_policy only traverses reachable ones.
+     return actions
+ 
+ 
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/hndt/core.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/core.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/core.py	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/core.py	2026-10-06 11:14:33.274888260 +0000
+@@ -1,9 +1,22 @@
+ from __future__ import annotations
+ 
+-from dataclasses import dataclass
++"""Platform-neutral binary dispute-policy primitives.
++
++This module intentionally contains no blockchain-, VM-, Merkle-, neural-, or
++unit-specific assumptions.  A :class:`CostModel` is only an ordered trace with
++finite terminal actions and a binary checkpoint-query cost oracle.
++
++All scientific minimax decisions are made with exact rational arithmetic.
++Float-valued views are retained solely for backwards-compatible reporting.
++"""
++
++from dataclasses import dataclass, field
++from fractions import Fraction
+ from math import inf, isfinite, isnan
+ from typing import Callable, Dict, Iterable, Mapping, Optional, Tuple
+ 
++from .exact import as_fraction
++
+ Interval = Tuple[int, int]
+ 
+ 
+@@ -23,23 +36,47 @@
+ 
+     @staticmethod
+     def split_at(k: int) -> "Action":
+-        if not isinstance(k, int):
++        if not isinstance(k, int) or isinstance(k, bool):
+             raise TypeError("split index must be an integer")
+         return Action(kind="split", split=k)
+ 
+ 
+ @dataclass
+ class CostModel:
+-    """Finite terminal costs plus a query-cost function.
++    """Ordered binary verification-cost model.
+ 
+-    ``terminal_costs`` maps ``(i, j)`` to ``{backend: cycles}``. Missing
+-    intervals/backends are unavailable. ``+inf`` is accepted as an explicit
+-    unavailable cost, while NaN and negative costs are rejected.
++    Parameters
++    ----------
++    n:
++        Number of primitive transitions in the committed execution.
++    terminal_costs:
++        Mapping ``(i,j) -> {action_id: cost}``.  The action identifiers are
++        opaque to the optimizer.  Missing actions are unavailable; ``+inf`` is
++        also accepted as an explicit unavailable value.
++    query_cost:
++        Function ``q(i,j,k)`` returning the cost of querying checkpoint ``k``
++        inside active interval ``[i,j]``.
++    terminal_capabilities:
++        Optional platform-neutral tags attached to terminal action identifiers,
++        for example ``{"replay", "one-step"}`` or ``{"zk-proof"}``.
++        Baseline adapters use these tags instead of hard-coded backend names.
++    metadata:
++        Free-form experiment metadata.  It never participates in optimization.
++    backend_priority:
++        Optional deterministic tie-break priority for equal-cost terminal
++        actions.  Smaller numbers win; lexical action id is the final tie-break.
++
++    The legacy class name ``CostModel`` is retained because the public scripts
++    already import it.  The general finite-partition proposal lives in
++    :mod:`hndt.dps` and adapts this binary model without platform assumptions.
+     """
+ 
+     n: int
+     terminal_costs: Mapping[Interval, Mapping[str, float]]
+     query_cost: Callable[[int, int, int], float]
++    terminal_capabilities: Mapping[str, Iterable[str]] = field(default_factory=dict)
++    metadata: Mapping[str, object] = field(default_factory=dict)
++    backend_priority: Mapping[str, int] = field(default_factory=dict)
+ 
+     def __post_init__(self) -> None:
+         if not isinstance(self.n, int) or isinstance(self.n, bool) or self.n <= 0:
+@@ -47,6 +84,20 @@
+         if not callable(self.query_cost):
+             raise TypeError("query_cost must be callable")
+ 
++        normalized_caps: dict[str, frozenset[str]] = {}
++        for name, tags in dict(self.terminal_capabilities).items():
++            if not isinstance(name, str) or not name.strip():
++                raise ValueError("terminal capability action ids must be non-empty strings")
++            if isinstance(tags, str):
++                values = [tags]
++            else:
++                values = list(tags)
++            clean = frozenset(str(x).strip() for x in values if str(x).strip())
++            normalized_caps[name.strip()] = clean
++        self.terminal_capabilities = normalized_caps
++        self.metadata = dict(self.metadata)
++        self.backend_priority = {str(k): int(v) for k, v in dict(self.backend_priority).items()}
++
+         for interval, backends in self.terminal_costs.items():
+             if not (isinstance(interval, tuple) and len(interval) == 2):
+                 raise ValueError(f"invalid interval key: {interval!r}")
+@@ -74,34 +125,104 @@
+         self.validate_interval(i, j)
+         return self.terminal_costs.get((i, j), {})
+ 
+-    def best_terminal(self, i: int, j: int) -> Tuple[float, Optional[str]]:
+-        candidates = [
+-            (float(cost), name)
+-            for name, cost in self.backends(i, j).items()
+-            if cost is not None and isfinite(float(cost))
+-        ]
++    def capabilities(self, backend: str) -> frozenset[str]:
++        """Return platform-neutral capabilities for a terminal action id.
++
++        Explicit capability metadata is authoritative.  A tiny legacy shim is
++        retained for older experiment fixtures that predate capability tags:
++        identifiers named ``native`` are treated as replay/one-step actions and
++        identifiers containing ``zk`` are treated as ZK-proof actions.  New
++        platform adapters should always supply capabilities explicitly.
++        """
++
++        if backend in self.terminal_capabilities:
++            return frozenset(self.terminal_capabilities[backend])
++        name = str(backend).strip().lower()
++        inferred = {"terminal"}
++        if name in {"native", "replay", "one-step", "onestep"}:
++            inferred.update({"replay", "one-step"})
++        if "zk" in name or "proof" in name:
++            inferred.add("zk-proof")
++        return frozenset(inferred)
++
++    def backend_supports(self, backend: str, required: Iterable[str]) -> bool:
++        return frozenset(str(x) for x in required).issubset(self.capabilities(backend))
++
++    def _terminal_candidates_exact(
++        self,
++        i: int,
++        j: int,
++        required_capabilities: Iterable[str] = (),
++    ) -> list[tuple[Fraction, str]]:
++        required = frozenset(str(x) for x in required_capabilities)
++        candidates: list[tuple[Fraction, str]] = []
++        for name, raw_cost in self.backends(i, j).items():
++            if raw_cost is None or not isfinite(float(raw_cost)):
++                continue
++            if required and not self.backend_supports(name, required):
++                continue
++            candidates.append((as_fraction(raw_cost), name))
++        candidates.sort(
++            key=lambda x: (
++                x[0],
++                self.backend_priority.get(x[1], 10**9),
++                x[1],
++            )
++        )
++        return candidates
++
++    def best_terminal_exact(
++        self,
++        i: int,
++        j: int,
++        required_capabilities: Iterable[str] = (),
++    ) -> Tuple[Optional[Fraction], Optional[str]]:
++        candidates = self._terminal_candidates_exact(i, j, required_capabilities)
+         if not candidates:
+-            return inf, None
+-        # Deterministic tie break: native first, then lexical backend name.
+-        candidates.sort(key=lambda x: (x[0], 0 if x[1] == "native" else 1, x[1]))
++            return None, None
+         return candidates[0]
+ 
+-    def checked_query_cost(self, i: int, j: int, k: int) -> float:
++    def best_terminal(
++        self,
++        i: int,
++        j: int,
++        required_capabilities: Iterable[str] = (),
++    ) -> Tuple[float, Optional[str]]:
++        cost, name = self.best_terminal_exact(i, j, required_capabilities)
++        return (inf, None) if cost is None else (float(cost), name)
++
++    def best_terminal_with_capabilities(
++        self,
++        i: int,
++        j: int,
++        required_capabilities: Iterable[str],
++    ) -> Tuple[float, Optional[str]]:
++        return self.best_terminal(i, j, required_capabilities)
++
++    def checked_query_cost_exact(self, i: int, j: int, k: int) -> Optional[Fraction]:
+         self.validate_interval(i, j)
+-        if not isinstance(k, int) or not (i < k < j):
++        if not isinstance(k, int) or isinstance(k, bool) or not (i < k < j):
+             raise ValueError(f"split {k!r} must satisfy {i} < k < {j}")
+-        value = float(self.query_cost(i, j, k))
++        raw = self.query_cost(i, j, k)
++        value = float(raw)
+         if isnan(value) or value < 0:
+             raise ValueError(
+                 f"query cost q({i},{j},{k}) must be non-negative and not NaN"
+             )
+-        return value
++        if not isfinite(value):
++            return None
++        return as_fraction(raw)
++
++    def checked_query_cost(self, i: int, j: int, k: int) -> float:
++        exact = self.checked_query_cost_exact(i, j, k)
++        return inf if exact is None else float(exact)
+ 
+ 
+ @dataclass
+ class HNDTResult:
+     n: int
+     value: Dict[Interval, float]
++    exact_value: Dict[Interval, Fraction]
+     action: Dict[Interval, Action]
+     max_rounds: Dict[Interval, int]
+ 
+@@ -109,84 +230,99 @@
+     def optimum(self) -> float:
+         return self.value[(0, self.n)]
+ 
++    @property
++    def optimum_exact(self) -> Fraction:
++        return self.exact_value[(0, self.n)]
+ 
+-def solve_hndt(model: CostModel, tie_tolerance: float = 1e-12) -> HNDTResult:
+-    """Compute the exact stop-or-split minimax policy in ``O(n^3)`` time.
+ 
+-    Tie handling is deterministic. Direct settlement is retained when a split
+-    differs by at most ``tie_tolerance``. Between effectively equal splits, the
+-    solver prefers fewer worst-case rounds, then the split closest to the
+-    interval midpoint, and finally the smaller split index.
+-    """
++def _validate_legacy_tolerance(tie_tolerance: float) -> None:
++    """Validate but deliberately do not use historical epsilon tie handling."""
+ 
+     if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+         raise ValueError("tie_tolerance must be non-negative and not NaN")
+ 
++
++def solve_hndt(model: CostModel, tie_tolerance: float = 0.0) -> HNDTResult:
++    """Compute the exact binary stop-or-split minimax policy in ``O(n^3)``.
++
++    Scientific comparisons use :class:`fractions.Fraction`.  ``tie_tolerance``
++    is accepted only for backwards API compatibility and does not affect policy
++    selection.  Equal objective values are resolved by fewer worst-case rounds,
++    then midpoint proximity, then smaller split index; direct settlement is
++    retained when exactly tied with a split.
++    """
++
++    _validate_legacy_tolerance(tie_tolerance)
++
+     n = model.n
+-    value: Dict[Interval, float] = {}
++    exact_value: Dict[Interval, Fraction] = {}
+     action: Dict[Interval, Action] = {}
+     rounds: Dict[Interval, int] = {}
+ 
+     for length in range(1, n + 1):
+         for i in range(0, n - length + 1):
+             j = i + length
+-            best, backend = model.best_terminal(i, j)
++            terminal, backend = model.best_terminal_exact(i, j)
++            best: Optional[Fraction] = terminal
+             best_action = Action.settle(backend) if backend is not None else None
+             best_rounds = 0 if backend is not None else 10**9
+-            best_split_key: tuple[int, float, int] | None = None
+-            midpoint = (i + j) / 2.0
++            best_split_key: tuple[int, int, int] | None = None
+ 
+             if length > 1:
+                 for k in range(i + 1, j):
+-                    left = value[(i, k)]
+-                    right = value[(k, j)]
+-                    if not (isfinite(left) and isfinite(right)):
++                    left = exact_value.get((i, k))
++                    right = exact_value.get((k, j))
++                    if left is None or right is None:
+                         continue
+-                    q = model.checked_query_cost(i, j, k)
+-                    if not isfinite(q):
+-                        # +inf is a clean way to mark a query as unavailable.
++                    q = model.checked_query_cost_exact(i, j, k)
++                    if q is None:
+                         continue
+                     candidate = q + max(left, right)
+                     candidate_rounds = 1 + max(rounds[(i, k)], rounds[(k, j)])
+-                    split_key = (candidate_rounds, abs(k - midpoint), k)
++                    split_key = (candidate_rounds, abs(2 * k - (i + j)), k)
+ 
+-                    improve = candidate < best - tie_tolerance
+-                    tied_with_best = abs(candidate - best) <= tie_tolerance
++                    improve = best is None or candidate < best
+                     tie_better_split = (
+-                        tied_with_best
++                        best is not None
++                        and candidate == best
+                         and best_action is not None
+                         and best_action.kind == "split"
+                         and (best_split_key is None or split_key < best_split_key)
+                     )
+-                    # If best_action is settlement, a tied split is deliberately
+-                    # not selected: settlement uses no additional interaction.
+                     if improve or tie_better_split:
+                         best = candidate
+                         best_action = Action.split_at(k)
+                         best_rounds = candidate_rounds
+                         best_split_key = split_key
+ 
+-            if best_action is None:
++            if best_action is None or best is None:
+                 raise ValueError(
+-                    f"Interval [{i},{j}] is unsolvable: no settlement backend and no "
++                    f"Interval [{i},{j}] is unsolvable: no settlement action and no "
+                     "finite split whose children are solvable. Ensure every atomic "
+-                    "interval has at least one terminal cost."
++                    "interval has at least one terminal action."
+                 )
+-            value[(i, j)] = best
++            exact_value[(i, j)] = best
+             action[(i, j)] = best_action
+             rounds[(i, j)] = best_rounds
+ 
+-    return HNDTResult(n=n, value=value, action=action, max_rounds=rounds)
+-
++    value = {interval: float(v) for interval, v in exact_value.items()}
++    return HNDTResult(
++        n=n,
++        value=value,
++        exact_value=exact_value,
++        action=action,
++        max_rounds=rounds,
++    )
+ 
+ 
+ @dataclass
+ class RoundBudgetResult:
+-    """Exact HNDT policy constrained by a worst-case split-round budget."""
++    """Exact minimax policy constrained by a worst-case split-round budget."""
+ 
+     n: int
+     round_budget: int
+     optimum: float
++    optimum_exact: Fraction
+     action: Dict[Interval, Action]
+     max_rounds: int
+ 
+@@ -194,47 +330,34 @@
+ def solve_hndt_round_budget(
+     model: CostModel,
+     round_budget: int,
+-    tie_tolerance: float = 1e-12,
++    tie_tolerance: float = 0.0,
+ ) -> RoundBudgetResult:
+-    """Minimize worst-case cost subject to at most ``round_budget`` splits.
+-
+-    This is a minimal latency-constrained extension of HNDT.  Let F_r(i,j)
+-    denote the cheapest worst-case dispute cost on interval [i,j] with at most
+-    r further split rounds.  Settlement consumes no additional split round,
+-    while a split at k consumes one and gives each child budget r-1:
+-
+-        F_r(i,j) = min(D(i,j),
+-                       min_k q(i,j,k) + max(F_{r-1}(i,k), F_{r-1}(k,j))).
+-
+-    The algorithm is exact in O(round_budget * n^3) time and does not require
+-    any new benchmark measurements.
+-    """
++    """Minimize worst-case cost subject to at most ``round_budget`` splits."""
+ 
+     if not isinstance(round_budget, int) or isinstance(round_budget, bool) or round_budget < 0:
+         raise ValueError("round_budget must be a non-negative integer")
+-    if tie_tolerance < 0 or isnan(float(tie_tolerance)):
+-        raise ValueError("tie_tolerance must be non-negative and not NaN")
++    _validate_legacy_tolerance(tie_tolerance)
+ 
+     n = model.n
+-    values: list[Dict[Interval, float]] = []
++    values: list[Dict[Interval, Optional[Fraction]]] = []
+     actions: list[Dict[Interval, Action | None]] = []
+     rounds_used: list[Dict[Interval, int]] = []
+ 
+     for budget in range(round_budget + 1):
+-        value_b: Dict[Interval, float] = {}
++        value_b: Dict[Interval, Optional[Fraction]] = {}
+         action_b: Dict[Interval, Action | None] = {}
+         rounds_b: Dict[Interval, int] = {}
+ 
+         for length in range(1, n + 1):
+             for i in range(0, n - length + 1):
+                 j = i + length
+-                best, backend = model.best_terminal(i, j)
++                terminal, backend = model.best_terminal_exact(i, j)
++                best = terminal
+                 best_action: Action | None = (
+                     Action.settle(backend) if backend is not None else None
+                 )
+                 best_rounds = 0 if backend is not None else 10**9
+-                best_split_key: tuple[int, float, int] | None = None
+-                midpoint = (i + j) / 2.0
++                best_split_key: tuple[int, int, int] | None = None
+ 
+                 if budget > 0 and length > 1:
+                     previous_values = values[budget - 1]
+@@ -242,10 +365,10 @@
+                     for k in range(i + 1, j):
+                         left = previous_values[(i, k)]
+                         right = previous_values[(k, j)]
+-                        if not (isfinite(left) and isfinite(right)):
++                        if left is None or right is None:
+                             continue
+-                        q = model.checked_query_cost(i, j, k)
+-                        if not isfinite(q):
++                        q = model.checked_query_cost_exact(i, j, k)
++                        if q is None:
+                             continue
+ 
+                         candidate = q + max(left, right)
+@@ -253,12 +376,12 @@
+                             previous_rounds[(i, k)],
+                             previous_rounds[(k, j)],
+                         )
+-                        split_key = (candidate_rounds, abs(k - midpoint), k)
++                        split_key = (candidate_rounds, abs(2 * k - (i + j)), k)
+ 
+-                        improve = candidate < best - tie_tolerance
+-                        tied = abs(candidate - best) <= tie_tolerance
++                        improve = best is None or candidate < best
+                         tie_better_split = (
+-                            tied
++                            best is not None
++                            and candidate == best
+                             and best_action is not None
+                             and best_action.kind == "split"
+                             and (best_split_key is None or split_key < best_split_key)
+@@ -278,15 +401,13 @@
+         rounds_used.append(rounds_b)
+ 
+     root = (0, n)
+-    if actions[round_budget][root] is None or not isfinite(values[round_budget][root]):
++    root_value = values[round_budget][root]
++    if actions[round_budget][root] is None or root_value is None:
+         raise ValueError(
+-            f"No feasible HNDT policy for n={n} within round_budget={round_budget}. "
++            f"No feasible policy for n={n} within round_budget={round_budget}. "
+             "Increase the budget or provide larger-interval terminal measurements."
+         )
+ 
+-    # Materialize only the policy states reachable from the root.  The remaining
+-    # budget is part of the DP state, but an interval in the resulting tree has
+-    # one deterministic budget inherited from its depth.
+     policy: Dict[Interval, Action] = {}
+     stack: list[tuple[int, int, int]] = [(0, n, round_budget)]
+     while stack:
+@@ -310,11 +431,13 @@
+     return RoundBudgetResult(
+         n=n,
+         round_budget=round_budget,
+-        optimum=values[round_budget][root],
++        optimum=float(root_value),
++        optimum_exact=root_value,
+         action=policy,
+         max_rounds=rounds_used[round_budget][root],
+     )
+ 
++
+ def policy_reachable_intervals(
+     action: Mapping[Interval, Action], root: Interval
+ ) -> Iterable[Interval]:
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/hndt/dps.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/dps.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/dps.py	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/dps.py	2026-10-06 11:17:05.088230438 +0000
+@@ -0,0 +1,500 @@
++from __future__ import annotations
++
++"""Platform-independent Pareto dispute-policy synthesis (Pareto-DPS).
++
++The model is intentionally independent of CKB, blockchains, Merkle trees,
++neural networks, and any particular cost unit.  An instance supplies:
++
++* an ordered deterministic execution with ``n`` primitive transitions;
++* admissible terminal verification actions for each interval;
++* admissible finite ordered partition/query actions for each interval;
++* a fault-location weight distribution.
++
++A query action may split an interval into two or more contiguous children.  The
++legacy binary HNDT model is therefore a strict special case.
++"""
++
++from dataclasses import dataclass, field
++from fractions import Fraction
++from itertools import product
++from math import isfinite
++from typing import Callable, Dict, Iterable, Mapping, Optional, Sequence, Tuple
++
++from .core import Action, CostModel
++from .exact import as_fraction, normalize_weight_fractions
++
++Interval = Tuple[int, int]
++
++
++@dataclass(frozen=True)
++class TerminalActionSpec:
++    action_id: str
++    cost: object
++    capabilities: frozenset[str] = frozenset()
++
++    def __post_init__(self) -> None:
++        if not isinstance(self.action_id, str) or not self.action_id.strip():
++            raise ValueError("terminal action_id must be a non-empty string")
++        c = as_fraction(self.cost)
++        if c < 0:
++            raise ValueError("terminal action cost must be non-negative")
++        object.__setattr__(self, "action_id", self.action_id.strip())
++        object.__setattr__(self, "cost", c)
++        object.__setattr__(
++            self,
++            "capabilities",
++            frozenset(str(x).strip() for x in self.capabilities if str(x).strip()),
++        )
++
++
++@dataclass(frozen=True)
++class QueryActionSpec:
++    action_id: str
++    cuts: Tuple[int, ...]
++    cost: object
++
++    def __post_init__(self) -> None:
++        if not isinstance(self.action_id, str) or not self.action_id.strip():
++            raise ValueError("query action_id must be a non-empty string")
++        cuts = tuple(int(x) for x in self.cuts)
++        if tuple(sorted(set(cuts))) != cuts:
++            raise ValueError("query cuts must be strictly increasing and unique")
++        c = as_fraction(self.cost)
++        if c < 0:
++            raise ValueError("query action cost must be non-negative")
++        object.__setattr__(self, "action_id", self.action_id.strip())
++        object.__setattr__(self, "cuts", cuts)
++        object.__setattr__(self, "cost", c)
++
++    def children(self, i: int, j: int) -> Tuple[Interval, ...]:
++        if not self.cuts:
++            raise ValueError("query action must contain at least one cut")
++        if any(not (i < k < j) for k in self.cuts):
++            raise ValueError(
++                f"query cuts {self.cuts!r} must lie strictly inside interval [{i},{j}]"
++            )
++        points = (i,) + self.cuts + (j,)
++        return tuple((points[r], points[r + 1]) for r in range(len(points) - 1))
++
++
++@dataclass
++class VerificationInstance:
++    n: int
++    terminal_actions: Mapping[Interval, Sequence[TerminalActionSpec]]
++    query_actions: Callable[[int, int], Sequence[QueryActionSpec]]
++    metadata: Mapping[str, object] = field(default_factory=dict)
++
++    def __post_init__(self) -> None:
++        if not isinstance(self.n, int) or isinstance(self.n, bool) or self.n <= 0:
++            raise ValueError("n must be a positive integer")
++        if not callable(self.query_actions):
++            raise TypeError("query_actions must be callable")
++        self.metadata = dict(self.metadata)
++        for (i, j), actions in self.terminal_actions.items():
++            self.validate_interval(i, j)
++            for action in actions:
++                if not isinstance(action, TerminalActionSpec):
++                    raise TypeError("terminal_actions must contain TerminalActionSpec values")
++
++    def validate_interval(self, i: int, j: int) -> None:
++        if not (0 <= i < j <= self.n):
++            raise ValueError(f"invalid interval [{i},{j}] for n={self.n}")
++
++    def terminals(self, i: int, j: int) -> Tuple[TerminalActionSpec, ...]:
++        self.validate_interval(i, j)
++        return tuple(self.terminal_actions.get((i, j), ()))
++
++    def queries(self, i: int, j: int) -> Tuple[QueryActionSpec, ...]:
++        self.validate_interval(i, j)
++        out = []
++        seen_ids = set()
++        for query in self.query_actions(i, j):
++            if not isinstance(query, QueryActionSpec):
++                raise TypeError("query_actions must return QueryActionSpec values")
++            if query.action_id in seen_ids:
++                raise ValueError(
++                    f"duplicate query action id {query.action_id!r} on interval [{i},{j}]"
++                )
++            seen_ids.add(query.action_id)
++            children = query.children(i, j)
++            if any(b - a >= j - i for a, b in children):
++                raise ValueError("every query child must be strictly shorter than its parent")
++            out.append(query)
++        return tuple(out)
++
++
++@dataclass(frozen=True)
++class DPSAction:
++    kind: str  # settle | query
++    action_id: str
++    cuts: Tuple[int, ...] = ()
++
++
++@dataclass(frozen=True)
++class DPSLabel:
++    interval: Interval
++    worst_exact: Fraction
++    mass_exact: Fraction
++    max_rounds: int
++    action: DPSAction
++    children: Tuple["DPSLabel", ...] = ()
++
++    @property
++    def worst_cost(self) -> float:
++        return float(self.worst_exact)
++
++    @property
++    def expected_mass(self) -> float:
++        return float(self.mass_exact)
++
++    @property
++    def mean_cost(self) -> float:
++        # At the root the mass is exactly ordinary expected cost.  This alias
++        # keeps the historical reporting vocabulary convenient.
++        return float(self.mass_exact)
++
++
++@dataclass
++class ParetoDPSResult:
++    n: int
++    exact_weights: Tuple[Fraction, ...]
++    frontier: Dict[Interval, Tuple[DPSLabel, ...]]
++    selected: DPSLabel
++
++    @property
++    def root_frontier(self) -> Tuple[DPSLabel, ...]:
++        return self.frontier[(0, self.n)]
++
++    @property
++    def worst_optimum_exact(self) -> Fraction:
++        return self.selected.worst_exact
++
++    @property
++    def expected_at_worst_exact(self) -> Fraction:
++        return self.selected.mass_exact
++
++    @property
++    def worst_optimum(self) -> float:
++        return float(self.worst_optimum_exact)
++
++    @property
++    def expected_at_worst(self) -> float:
++        return float(self.expected_at_worst_exact)
++
++
++@dataclass
++class ScalarDPSResult:
++    n: int
++    exact_value: Dict[Interval, Fraction]
++    selected: DPSLabel
++
++    @property
++    def optimum_exact(self) -> Fraction:
++        return self.exact_value[(0, self.n)]
++
++    @property
++    def optimum(self) -> float:
++        return float(self.optimum_exact)
++
++
++def _action_tie_key(label: DPSLabel) -> tuple:
++    return (
++        label.max_rounds,
++        0 if label.action.kind == "settle" else 1,
++        label.action.action_id,
++        label.action.cuts,
++    )
++
++
++def prune_dps_frontier(labels: Iterable[DPSLabel]) -> Tuple[DPSLabel, ...]:
++    """Exact ``O(C log C)`` pruning of a two-objective antichain."""
++
++    ordered = sorted(
++        labels,
++        key=lambda x: (x.worst_exact, x.mass_exact, _action_tie_key(x)),
++    )
++    unique: list[DPSLabel] = []
++    for label in ordered:
++        if (
++            unique
++            and label.worst_exact == unique[-1].worst_exact
++            and label.mass_exact == unique[-1].mass_exact
++        ):
++            if _action_tie_key(label) < _action_tie_key(unique[-1]):
++                unique[-1] = label
++        else:
++            unique.append(label)
++
++    frontier: list[DPSLabel] = []
++    best_mass: Optional[Fraction] = None
++    for label in unique:
++        if best_mass is None or label.mass_exact < best_mass:
++            frontier.append(label)
++            best_mass = label.mass_exact
++    return tuple(frontier)
++
++
++def _prefix_weights(weights: Tuple[Fraction, ...]) -> list[Fraction]:
++    prefix = [Fraction(0, 1)]
++    for weight in weights:
++        prefix.append(prefix[-1] + weight)
++    return prefix
++
++
++def solve_pareto_dps(
++    instance: VerificationInstance,
++    fault_weights: Optional[Sequence[float]] = None,
++) -> ParetoDPSResult:
++    """Compute the exact Pareto antichain for a finite-partition instance."""
++
++    weights = normalize_weight_fractions(instance.n, fault_weights)
++    prefix = _prefix_weights(weights)
++
++    def mass(i: int, j: int) -> Fraction:
++        return prefix[j] - prefix[i]
++
++    frontier: Dict[Interval, Tuple[DPSLabel, ...]] = {}
++
++    for length in range(1, instance.n + 1):
++        for i in range(0, instance.n - length + 1):
++            j = i + length
++            interval_mass = mass(i, j)
++            candidates: list[DPSLabel] = []
++
++            for terminal in instance.terminals(i, j):
++                cost = as_fraction(terminal.cost)
++                candidates.append(
++                    DPSLabel(
++                        interval=(i, j),
++                        worst_exact=cost,
++                        mass_exact=interval_mass * cost,
++                        max_rounds=0,
++                        action=DPSAction("settle", terminal.action_id),
++                    )
++                )
++
++            if length > 1:
++                for query in instance.queries(i, j):
++                    child_intervals = query.children(i, j)
++                    if any(child not in frontier for child in child_intervals):
++                        continue
++                    child_frontiers = [frontier[child] for child in child_intervals]
++                    if any(not values for values in child_frontiers):
++                        continue
++                    q = as_fraction(query.cost)
++                    for child_labels in product(*child_frontiers):
++                        candidates.append(
++                            DPSLabel(
++                                interval=(i, j),
++                                worst_exact=q + max(x.worst_exact for x in child_labels),
++                                mass_exact=(
++                                    interval_mass * q
++                                    + sum((x.mass_exact for x in child_labels), Fraction(0, 1))
++                                ),
++                                max_rounds=1 + max(x.max_rounds for x in child_labels),
++                                action=DPSAction("query", query.action_id, query.cuts),
++                                children=tuple(child_labels),
++                            )
++                        )
++
++            frontier[(i, j)] = prune_dps_frontier(candidates) if candidates else tuple()
++
++    root = frontier[(0, instance.n)]
++    if not root:
++        raise ValueError("root interval is unsolvable")
++    selected = min(
++        root,
++        key=lambda x: (x.worst_exact, x.mass_exact, _action_tie_key(x)),
++    )
++    return ParetoDPSResult(instance.n, weights, frontier, selected)
++
++
++def solve_scalar_dps(
++    instance: VerificationInstance,
++    fault_weights: Optional[Sequence[float]] = None,
++) -> ScalarDPSResult:
++    """Exact minimax-only reference solver over the same finite action space."""
++
++    weights = normalize_weight_fractions(instance.n, fault_weights)
++    prefix = _prefix_weights(weights)
++
++    def mass(i: int, j: int) -> Fraction:
++        return prefix[j] - prefix[i]
++
++    value: Dict[Interval, Fraction] = {}
++    chosen: Dict[Interval, DPSLabel] = {}
++
++    for length in range(1, instance.n + 1):
++        for i in range(0, instance.n - length + 1):
++            j = i + length
++            interval_mass = mass(i, j)
++            candidates: list[DPSLabel] = []
++            for terminal in instance.terminals(i, j):
++                cost = as_fraction(terminal.cost)
++                candidates.append(
++                    DPSLabel(
++                        (i, j),
++                        cost,
++                        interval_mass * cost,
++                        0,
++                        DPSAction("settle", terminal.action_id),
++                    )
++                )
++            if length > 1:
++                for query in instance.queries(i, j):
++                    child_intervals = query.children(i, j)
++                    if any(child not in chosen for child in child_intervals):
++                        continue
++                    children = tuple(chosen[child] for child in child_intervals)
++                    q = as_fraction(query.cost)
++                    candidates.append(
++                        DPSLabel(
++                            (i, j),
++                            q + max(x.worst_exact for x in children),
++                            interval_mass * q
++                            + sum((x.mass_exact for x in children), Fraction(0, 1)),
++                            1 + max(x.max_rounds for x in children),
++                            DPSAction("query", query.action_id, query.cuts),
++                            children,
++                        )
++                    )
++            if not candidates:
++                continue
++            # Minimax only.  Exact ties prefer settlement, then fewer rounds,
++            # then deterministic action identity.  Expected mass is deliberately
++            # NOT used to choose among minimax ties.
++            best = min(
++                candidates,
++                key=lambda x: (
++                    x.worst_exact,
++                    0 if x.action.kind == "settle" else 1,
++                    x.max_rounds,
++                    x.action.action_id,
++                    x.action.cuts,
++                ),
++            )
++            value[(i, j)] = best.worst_exact
++            chosen[(i, j)] = best
++
++    root = (0, instance.n)
++    if root not in chosen:
++        raise ValueError("root interval is unsolvable")
++    return ScalarDPSResult(instance.n, value, chosen[root])
++
++
++def reconstruct_dps_policy(label: DPSLabel) -> Dict[Interval, DPSAction]:
++    policy: Dict[Interval, DPSAction] = {}
++
++    def visit(node: DPSLabel) -> None:
++        old = policy.get(node.interval)
++        if old is not None and old != node.action:
++            raise RuntimeError(f"inconsistent actions for interval {node.interval}")
++        policy[node.interval] = node.action
++        for child in node.children:
++            visit(child)
++
++    visit(label)
++    return policy
++
++
++def evaluate_dps_fault(
++    instance: VerificationInstance,
++    policy: Mapping[Interval, DPSAction],
++    fault_index: int,
++) -> tuple[Fraction, int, Interval, str]:
++    if not 0 <= fault_index < instance.n:
++        raise ValueError("fault_index out of range")
++    interval = (0, instance.n)
++    total = Fraction(0, 1)
++    rounds = 0
++    seen = set()
++    while True:
++        if interval in seen:
++            raise RuntimeError("policy cycle detected")
++        seen.add(interval)
++        action = policy.get(interval)
++        if action is None:
++            raise ValueError(f"policy is missing interval {interval}")
++        i, j = interval
++        if action.kind == "settle":
++            matches = [x for x in instance.terminals(i, j) if x.action_id == action.action_id]
++            if len(matches) != 1:
++                raise ValueError(f"terminal action {action.action_id!r} unavailable on {interval}")
++            total += as_fraction(matches[0].cost)
++            return total, rounds, interval, action.action_id
++        if action.kind != "query":
++            raise ValueError(f"invalid DPS action kind {action.kind!r}")
++        matches = [x for x in instance.queries(i, j) if x.action_id == action.action_id]
++        if len(matches) != 1:
++            raise ValueError(f"query action {action.action_id!r} unavailable on {interval}")
++        query = matches[0]
++        total += as_fraction(query.cost)
++        rounds += 1
++        containing = [child for child in query.children(i, j) if child[0] <= fault_index < child[1]]
++        if len(containing) != 1:
++            raise AssertionError("query partition does not identify exactly one fault child")
++        interval = containing[0]
++
++
++def expected_cost_of_dps_policy(
++    instance: VerificationInstance,
++    policy: Mapping[Interval, DPSAction],
++    fault_weights: Optional[Sequence[float]] = None,
++) -> Fraction:
++    weights = normalize_weight_fractions(instance.n, fault_weights)
++    return sum(
++        (
++            weights[t] * evaluate_dps_fault(instance, policy, t)[0]
++            for t in range(instance.n)
++        ),
++        Fraction(0, 1),
++    )
++
++
++def from_cost_model(model: CostModel) -> VerificationInstance:
++    """Adapt the legacy binary :class:`CostModel` to generic Pareto-DPS."""
++
++    terminals: dict[Interval, tuple[TerminalActionSpec, ...]] = {}
++    for interval, backend_map in model.terminal_costs.items():
++        actions = []
++        for backend, raw in backend_map.items():
++            if raw is None or not isfinite(float(raw)):
++                continue
++            actions.append(
++                TerminalActionSpec(
++                    backend,
++                    raw,
++                    capabilities=model.capabilities(backend),
++                )
++            )
++        if actions:
++            terminals[interval] = tuple(actions)
++
++    def queries(i: int, j: int) -> tuple[QueryActionSpec, ...]:
++        out = []
++        for k in range(i + 1, j):
++            q = model.checked_query_cost_exact(i, j, k)
++            if q is not None:
++                out.append(QueryActionSpec(f"binary@{k}", (k,), q))
++        return tuple(out)
++
++    metadata = dict(model.metadata)
++    metadata.setdefault("source_model", "binary-cost-model")
++    return VerificationInstance(model.n, terminals, queries, metadata)
++
++
++def dps_to_legacy_policy(label: DPSLabel) -> Dict[Interval, Action]:
++    """Convert a binary Pareto-DPS policy to the historical policy format."""
++
++    dps_policy = reconstruct_dps_policy(label)
++    legacy: Dict[Interval, Action] = {}
++    for interval, action in dps_policy.items():
++        if action.kind == "settle":
++            legacy[interval] = Action.settle(action.action_id)
++        elif action.kind == "query" and len(action.cuts) == 1:
++            legacy[interval] = Action.split_at(action.cuts[0])
++        else:
++            raise ValueError(
++                "legacy policy conversion is defined only for binary query actions"
++            )
++    return legacy
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/hndt/generic_io.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/generic_io.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/generic_io.py	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/generic_io.py	2026-10-06 11:11:50.266073794 +0000
+@@ -0,0 +1,143 @@
++from __future__ import annotations
++
++"""Generic CSV/JSON input for platform-independent Pareto-DPS instances."""
++
++import csv
++import json
++from collections import defaultdict
++from pathlib import Path
++from typing import Dict, List, Tuple
++
++from .dps import QueryActionSpec, TerminalActionSpec, VerificationInstance
++
++Interval = Tuple[int, int]
++
++
++def _require_columns(fieldnames, required, path: Path) -> None:
++    present = set(fieldnames or [])
++    missing = [x for x in required if x not in present]
++    if missing:
++        raise ValueError(f"{path} is missing required columns: {', '.join(missing)}")
++
++
++def read_generic_trace(path: str | Path) -> List[dict]:
++    path = Path(path)
++    with path.open(newline="", encoding="utf-8") as f:
++        reader = csv.DictReader(f)
++        _require_columns(reader.fieldnames, ["index"], path)
++        rows = list(reader)
++    if not rows:
++        raise ValueError(f"trace is empty: {path}")
++    indices = [int(row["index"]) for row in rows]
++    if indices != list(range(len(rows))):
++        raise ValueError(f"trace indices must be consecutive 0..n-1; got {indices}")
++    return rows
++
++
++def _parse_capabilities(text: str | None) -> frozenset[str]:
++    if text is None:
++        return frozenset()
++    raw = str(text).strip()
++    if not raw:
++        return frozenset()
++    return frozenset(x.strip() for x in raw.replace(";", ",").split(",") if x.strip())
++
++
++def read_terminal_actions(path: str | Path) -> Dict[Interval, Tuple[TerminalActionSpec, ...]]:
++    """Read long-format terminal actions.
++
++    Required columns: ``i,j,action_id,cost``.
++    Optional column: ``capabilities`` (comma/semicolon separated tags).
++    """
++
++    path = Path(path)
++    grouped: dict[Interval, list[TerminalActionSpec]] = defaultdict(list)
++    seen = set()
++    with path.open(newline="", encoding="utf-8") as f:
++        reader = csv.DictReader(f)
++        _require_columns(reader.fieldnames, ["i", "j", "action_id", "cost"], path)
++        for line_no, row in enumerate(reader, start=2):
++            i, j = int(row["i"]), int(row["j"])
++            action_id = str(row["action_id"]).strip()
++            key = (i, j, action_id)
++            if key in seen:
++                raise ValueError(f"duplicate terminal action {key!r} at {path}:{line_no}")
++            seen.add(key)
++            grouped[(i, j)].append(
++                TerminalActionSpec(
++                    action_id,
++                    row["cost"],
++                    _parse_capabilities(row.get("capabilities")),
++                )
++            )
++    return {interval: tuple(actions) for interval, actions in grouped.items()}
++
++
++def _parse_cuts(text: str) -> tuple[int, ...]:
++    raw = str(text).strip()
++    if not raw:
++        raise ValueError("query cuts must be non-empty")
++    return tuple(int(x.strip()) for x in raw.replace(",", ";").split(";") if x.strip())
++
++
++def read_query_actions(path: str | Path) -> Dict[Interval, Tuple[QueryActionSpec, ...]]:
++    """Read long-format query actions.
++
++    Required columns: ``i,j,action_id,cuts,cost``.  ``cuts`` uses ``;`` between
++    absolute checkpoint indices, e.g. ``4`` for binary or ``4;8`` for ternary.
++    """
++
++    path = Path(path)
++    grouped: dict[Interval, list[QueryActionSpec]] = defaultdict(list)
++    seen = set()
++    with path.open(newline="", encoding="utf-8") as f:
++        reader = csv.DictReader(f)
++        _require_columns(reader.fieldnames, ["i", "j", "action_id", "cuts", "cost"], path)
++        for line_no, row in enumerate(reader, start=2):
++            i, j = int(row["i"]), int(row["j"])
++            action_id = str(row["action_id"]).strip()
++            key = (i, j, action_id)
++            if key in seen:
++                raise ValueError(f"duplicate query action {key!r} at {path}:{line_no}")
++            seen.add(key)
++            grouped[(i, j)].append(
++                QueryActionSpec(action_id, _parse_cuts(row["cuts"]), row["cost"])
++            )
++    return {interval: tuple(actions) for interval, actions in grouped.items()}
++
++
++def load_metadata(path: str | Path | None) -> dict:
++    if path is None:
++        return {}
++    path = Path(path)
++    with path.open(encoding="utf-8") as f:
++        value = json.load(f)
++    if not isinstance(value, dict):
++        raise ValueError("metadata JSON must contain an object")
++    return value
++
++
++def build_verification_instance(
++    trace_path: str | Path,
++    terminal_actions_path: str | Path,
++    query_actions_path: str | Path,
++    metadata_path: str | Path | None = None,
++) -> VerificationInstance:
++    trace = read_generic_trace(trace_path)
++    n = len(trace)
++    terminals = read_terminal_actions(terminal_actions_path)
++    queries_by_interval = read_query_actions(query_actions_path)
++
++    for i, j in list(terminals) + list(queries_by_interval):
++        if not (0 <= i < j <= n):
++            raise ValueError(f"action interval [{i},{j}] exceeds trace length n={n}")
++
++    def queries(i: int, j: int):
++        return queries_by_interval.get((i, j), ())
++
++    return VerificationInstance(
++        n=n,
++        terminal_actions=terminals,
++        query_actions=queries,
++        metadata=load_metadata(metadata_path),
++    )
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/hndt/io.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/io.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/io.py	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/io.py	2026-10-06 11:12:01.808836868 +0000
+@@ -119,7 +119,7 @@
+     return data
+ 
+ 
+-def build_model(
++def build_ckb_model(
+     trace_path: str | Path,
+     interval_path: str | Path,
+     query_path: str | Path,
+@@ -166,7 +166,41 @@
+         del i, j, k
+         return q_value
+ 
+-    return CostModel(n=n, terminal_costs=terminal, query_cost=q)
++    capabilities = {
++        "native": frozenset({"replay", "one-step"}),
++        "zkvm": frozenset({"zk-proof"}),
++    }
++    metadata = {
++        "platform": "ckb-vm",
++        "cost_unit": "cycles",
++        "query_authentication": "merkle",
++        "trace_granularity": "operator",
++        "merkle_leaf_count": merkle_leaf_count,
++        "merkle_depth": required_depth,
++    }
++    return CostModel(
++        n=n,
++        terminal_costs=terminal,
++        query_cost=q,
++        terminal_capabilities=capabilities,
++        metadata=metadata,
++        backend_priority={"native": 0, "zkvm": 1},
++    )
++
++
++def build_model(
++    trace_path: str | Path,
++    interval_path: str | Path,
++    query_path: str | Path,
++    config_path: str | Path,
++) -> CostModel:
++    """Backward-compatible alias for the CKB-VM measurement adapter.
++
++    New platform-independent experiments should use
++    :func:`hndt.generic_io.build_verification_instance`.
++    """
++
++    return build_ckb_model(trace_path, interval_path, query_path, config_path)
+ 
+ 
+ def validate_atomic_coverage(model: CostModel) -> List[Tuple[int, int]]:
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/hndt/literature_baselines.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/literature_baselines.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/literature_baselines.py	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/literature_baselines.py	2026-10-06 11:14:03.636184968 +0000
+@@ -1,12 +1,11 @@
+ from __future__ import annotations
+ 
+-"""Paper-grounded comparison policies adapted to CellVG's common cost model.
++"""Paper-grounded baseline adapters with explicit fidelity boundaries.
+ 
+-Every adapter has an explicit fidelity boundary.  System papers contribute only
+-localization/terminal behavior that can be reproduced on the current ordered
+-trace; classical tree papers contribute only the optimization objective that is
+-mathematically identical under the adapter's stated assumptions.  Missing
+-full-system components are never assigned synthetic costs.
++The adapters compare only components that can be represented faithfully on the
++current ordered-trace cost model.  They use terminal *capabilities* rather than
++platform-specific names.  Missing protocol levels or verifier measurements are
++skipped instead of fabricated.
+ """
+ 
+ from dataclasses import dataclass
+@@ -37,24 +36,35 @@
+     excluded_components: str
+     builder: Callable[[CostModel], Policy]
+     baseline_class: str = "system"
++    claim_guard: str = "adaptation; not a full-system reproduction"
+ 
+ 
+-def _midpoint_to_native_atomic(model: CostModel, *, label: str) -> Policy:
+-    """Midpoint localization followed by a measured native atomic verifier."""
++def _midpoint_to_atomic_capability(
++    model: CostModel,
++    *,
++    label: str,
++    required_capabilities=frozenset({"one-step"}),
++) -> Policy:
++    """Binary midpoint localization followed by a capability-matched atomic check."""
+ 
+     policy: Policy = {}
+ 
+     def build(i: int, j: int) -> None:
+         if j - i == 1:
+-            act = _terminal_action(model, i, j, required_backend="native")
++            act = _terminal_action(
++                model,
++                i,
++                j,
++                required_capabilities=required_capabilities,
++            )
+             if act is None:
++                caps = ",".join(sorted(required_capabilities))
+                 raise ValueError(
+-                    f"{label} requires a finite native CKB-VM cost on atomic "
+-                    f"interval [{i},{j}]"
++                    f"{label} requires a finite atomic terminal action with "
++                    f"capabilities {{{caps}}} on [{i},{j}]"
+                 )
+             policy[(i, j)] = act
+             return
+-
+         k = _midpoint(i, j)
+         policy[(i, j)] = Action.split_at(k)
+         build(i, k)
+@@ -64,41 +74,68 @@
+     return policy
+ 
+ 
+-
+-
+ def rdoc_binary_search_policy(model: CostModel) -> Policy:
+-    return _midpoint_to_native_atomic(model, label="RDoC binary-search dispute")
++    return _midpoint_to_atomic_capability(model, label="RDoC binary-search localization")
+ 
+ 
+ def truebit_verification_game_policy(model: CostModel) -> Policy:
+-    return _midpoint_to_native_atomic(model, label="TrueBit verification game")
++    return _midpoint_to_atomic_capability(model, label="TrueBit verification game")
++
+ 
+ def arbitrum_ivp_policy(model: CostModel) -> Policy:
+-    return _midpoint_to_native_atomic(model, label="Arbitrum-IVP")
++    return _midpoint_to_atomic_capability(model, label="Arbitrum interactive verification")
+ 
+ 
+-def opml_phase1_policy(model: CostModel) -> Policy:
+-    return _midpoint_to_native_atomic(model, label="opML Phase-1")
++def opml_single_phase_policy(model: CostModel) -> Policy:
++    """Faithful one-phase opML projection, only for VM-microinstruction traces.
+ 
++    One-phase opML bisects a VM execution until one microinstruction remains.
++    Applying that baseline directly to an operator-level trace would silently
++    replace a microinstruction game with operator replay, so it is rejected.
++    """
+ 
+-def agatha_gpp_chain_policy(model: CostModel) -> Policy:
+-    return _midpoint_to_native_atomic(model, label="Agatha-GPP chain projection")
++    granularity = str(model.metadata.get("trace_granularity", "")).strip().lower()
++    if granularity not in {"vm-microinstruction", "microinstruction"}:
++        raise ValueError(
++            "faithful one-phase opML requires a VM-microinstruction trace; "
++            f"current trace_granularity={granularity or 'unspecified'}"
++        )
++    return _midpoint_to_atomic_capability(model, label="opML single-phase")
+ 
+ 
+-def zkopml_operator_policy(model: CostModel) -> Policy:
+-    """zk-OPML comparable operator-level adaptation.
++def opml_outer_phase_projection_policy(model: CostModel) -> Policy:
++    """Outer/high-level phase of multi-phase opML on an ordered operator trace.
+ 
+-    The paper localizes by binary search to one ONNX operator and then resolves
+-    that operator with a ZK proof.  The adapter is executable only when a finite
+-    reproduced ``zkvm`` cost exists for every atomic operator; otherwise it is
+-    skipped rather than silently using native CKB verification.
++    This is intentionally labelled a *projection*: the inner VM-microinstruction
++    phase is not represented unless corresponding microtrace measurements exist.
+     """
+ 
++    return _midpoint_to_atomic_capability(
++        model,
++        label="opML outer-phase projection",
++        required_capabilities=frozenset({"one-step"}),
++    )
++
++
++def agatha_gpp_chain_policy(model: CostModel) -> Policy:
++    """Ordered-chain projection of Agatha's graph-based pinpoint protocol."""
++
++    return _midpoint_to_atomic_capability(
++        model,
++        label="Agatha GPP chain projection",
++        required_capabilities=frozenset({"one-step"}),
++    )
++
++
++def zkopml_operator_policy(model: CostModel) -> Policy:
++    """Operator localization followed by a measured ZK-capable terminal action."""
++
+     return midpoint_operator_zk_policy(model)
+ 
+ 
+-# Backward-compatible aliases for earlier revised archives.
+-opml_bisection_policy = opml_phase1_policy
++# Backward-compatible aliases used by older scripts.
++opml_phase1_policy = opml_single_phase_policy
++opml_bisection_policy = opml_outer_phase_projection_policy
+ agatha_gpp_policy = agatha_gpp_chain_policy
+ 
+ 
+@@ -106,127 +143,124 @@
+     return (
+         LiteratureBaselineSpec(
+             key="rdoc_binary_search",
+-            display_name="RDoC binary-search dispute (common-trace adaptation)",
++            display_name="RDoC binary-search localization (ordered-trace projection)",
+             paper="Canetti, Riva, and Rothblum, Refereed Delegation of Computation",
+             year=2013,
+             url="https://doi.org/10.1016/j.ic.2013.03.003",
+-            fidelity="binary-search localization adaptation",
++            fidelity="structural projection",
+             comparable_component="Binary search over committed computation configurations to isolate disagreement.",
+-            excluded_components="Original refereed-delegation protocol, cryptographic game, and server economics.",
++            excluded_components="Refereed-delegation protocol, cryptographic game, and server economics.",
+             builder=rdoc_binary_search_policy,
+-            baseline_class="optimistic-system",
++            baseline_class="binary-localization",
+         ),
+         LiteratureBaselineSpec(
+             key="truebit_verification_game",
+-            display_name="TrueBit verification game (common-trace adaptation)",
++            display_name="TrueBit binary verification game (ordered-trace projection)",
+             paper="Teutsch and Reitwiessner, A Scalable Verification Solution for Blockchains",
+             year=2023,
+             url="https://doi.org/10.1142/9789811278631_0015",
+-            fidelity="binary-search verification-game adaptation",
++            fidelity="structural projection",
+             comparable_component="Binary localization of an incorrect execution to one disputed transition.",
+-            excluded_components="Incentive layer, deposits, task market, and full TrueBit protocol economics.",
++            excluded_components="Incentive layer, deposits, task market, and protocol economics.",
+             builder=truebit_verification_game_policy,
+-            baseline_class="optimistic-system",
++            baseline_class="binary-localization",
+         ),
+         LiteratureBaselineSpec(
+             key="arbitrum_ivp",
+-            display_name="Arbitrum-IVP (common-trace adaptation)",
++            display_name="Arbitrum binary challenge localization (ordered-trace projection)",
+             paper="Kalodner et al., Arbitrum: Scalable, Private Smart Contracts",
+             year=2018,
+             url="https://www.usenix.org/conference/usenixsecurity18/presentation/kalodner",
+-            fidelity="structural adaptation",
++            fidelity="structural projection",
+             comparable_component="Binary challenge localization to one disputed transition.",
+-            excluded_components="Arbitrum VM economics, staking, and full assertion protocol.",
++            excluded_components="VM economics, staking, assertion protocol, and chain-specific one-step proof plumbing.",
+             builder=arbitrum_ivp_policy,
+-            baseline_class="optimistic-system",
++            baseline_class="binary-localization",
+         ),
+         LiteratureBaselineSpec(
+-            key="opml_phase1",
+-            display_name="opML Phase-1 (common-trace adaptation)",
++            key="opml_single_phase",
++            display_name="opML single-phase VM dispute (requires microinstruction trace)",
+             paper="Conway et al., opML: Optimistic Machine Learning on Blockchain",
+             year=2024,
+             url="https://arxiv.org/abs/2401.17555",
+-            fidelity="phase-1 adaptation",
+-            comparable_component="Operator-level bisection to one disputed DNN operator.",
+-            excluded_components=(
+-                "Second VM-microinstruction dispute phase and original-chain economics; "
+-                "not measured, therefore not fabricated."
+-            ),
+-            builder=opml_phase1_policy,
+-            baseline_class="optimistic-ml",
++            fidelity="faithful localization level when microinstruction trace is supplied",
++            comparable_component="Bisection over VM microinstructions followed by one-step arbitration.",
++            excluded_components="Chain economics and any microinstruction measurements not supplied to the artifact.",
++            builder=opml_single_phase_policy,
++            baseline_class="conditional-full-level",
++            claim_guard="execute only on a VM-microinstruction trace; otherwise skip",
++        ),
++        LiteratureBaselineSpec(
++            key="opml_outer_phase_projection",
++            display_name="opML outer-phase operator projection (not full two-phase opML)",
++            paper="Conway et al., opML: Optimistic Machine Learning on Blockchain",
++            year=2024,
++            url="https://arxiv.org/abs/2401.17555",
++            fidelity="outer-phase structural projection",
++            comparable_component="High-level/operator bisection of multi-phase opML.",
++            excluded_components="Inner VM-microinstruction bisection/arbitration and chain economics.",
++            builder=opml_outer_phase_projection_policy,
++            baseline_class="protocol-projection",
++            claim_guard="projection only; never label as full opML",
+         ),
+         LiteratureBaselineSpec(
+             key="agatha_gpp_chain",
+-            display_name="Agatha-GPP chain projection (common-trace adaptation)",
++            display_name="Agatha GPP ordered-chain projection (not full DAG GPP)",
+             paper="Zheng et al., Agatha: Smart Contract for DNN Computation",
+             year=2021,
+             url="https://arxiv.org/abs/2105.04919",
+-            fidelity="chain projection of GPP",
+-            comparable_component="Graph-node pinpointing restricted to the ordered chain case.",
++            fidelity="ordered-chain structural projection",
++            comparable_component="Pinpoint localization when the computation graph is restricted to a chain.",
+             excluded_components="General DAG GPP, XCE machinery, and Ethereum-specific arbitration.",
+             builder=agatha_gpp_chain_policy,
+-            baseline_class="optimistic-ml",
++            baseline_class="protocol-projection",
++            claim_guard="projection only; never label as full Agatha reproduction",
+         ),
+         LiteratureBaselineSpec(
+             key="kirkpatrick_klawe_minimax",
+-            display_name="Alphabetic Minimax Tree (Kirkpatrick-Klawe objective adaptation)",
++            display_name="Alphabetic minimax objective (Kirkpatrick-Klawe)",
+             paper="Kirkpatrick and Klawe, Alphabetic Minimax Trees",
+             year=1985,
+             url="https://doi.org/10.1137/0214039",
+-            fidelity="exact objective reduction under forced atomic leaves and constant query cost",
++            fidelity="exact objective reduction",
+             comparable_component=(
+-                "Ordered binary tree minimizing max_t(A_t + q d_t), equivalent after "
+-                "scaling to the paper's max_t(w_t + d_t) objective."
+-            ),
+-            excluded_components=(
+-                "Historical construction algorithm itself; this repository uses an independent "
+-                "exact interval DP for the mathematically identical objective."
++                "Ordered binary fixed-leaf tree minimizing max_t(A_t + q d_t) under constant query cost."
+             ),
++            excluded_components="Historical construction algorithm; the artifact uses an independent exact interval DP.",
+             builder=kirkpatrick_klawe_atomic_policy,
+             baseline_class="classical-tree-theory",
++            claim_guard="exact objective adaptation under mechanically checked preconditions",
+         ),
+         LiteratureBaselineSpec(
+             key="hu_tucker_mean",
+-            display_name="Optimal Alphabetic Mean Tree (Hu-Tucker objective adaptation)",
++            display_name="Alphabetic weighted-path objective (Hu-Tucker)",
+             paper="Hu and Tucker, Optimal Computer Search Trees and Variable-Length Alphabetical Codes",
+             year=1971,
+             url="https://doi.org/10.1137/0121057",
+-            fidelity="exact objective reduction under forced atomic leaves and constant query cost",
+-            comparable_component=(
+-                "Ordered fixed-leaf tree minimizing weighted path length; uniform fault weights "
+-                "are used unless an explicit distribution is supplied."
+-            ),
+-            excluded_components=(
+-                "Historical Hu-Tucker construction algorithm itself; this repository uses an "
+-                "independent exact interval DP for the same objective."
+-            ),
++            fidelity="exact objective reduction",
++            comparable_component="Ordered fixed-leaf tree minimizing weighted path length under constant query cost.",
++            excluded_components="Historical Hu-Tucker construction algorithm; independent exact interval DP is used.",
+             builder=hu_tucker_atomic_policy,
+             baseline_class="classical-tree-theory",
++            claim_guard="exact objective adaptation under mechanically checked preconditions",
+         ),
+         LiteratureBaselineSpec(
+             key="zkopml_operator",
+-            display_name="zk-OPML operator dispute (reproduced-ZK adaptation)",
++            display_name="zk-OPML operator localization + measured ZK terminal projection",
+             paper="Kersic and Turkanovic, zk-OPML: Using zero-knowledge proofs to optimize OPML",
+             year=2026,
+             url="https://doi.org/10.1007/s44443-026-00573-1",
+-            fidelity="operator-localization plus reproduced atomic-ZK adaptation",
+-            comparable_component=(
+-                "Binary search over the operator sequence followed by ZK verification of the "
+-                "isolated operator."
+-            ),
+-            excluded_components=(
+-                "Original smart-contract/finality economics and any ZK cost not independently "
+-                "reproduced in this artifact."
+-            ),
++            fidelity="operator-localization plus measured ZK-terminal projection",
++            comparable_component="Binary/operator localization followed by ZK verification of the isolated operator.",
++            excluded_components="Any proving, finality, gas, or protocol cost not explicitly reproduced in the input cost oracle.",
+             builder=zkopml_operator_policy,
+             baseline_class="hybrid-optimistic-zk",
++            claim_guard="skip unless every atomic operator has an explicit zk-proof-capable terminal cost",
+         ),
+     )
+ 
+ 
+ def policy_signature(policy: Policy) -> tuple:
+-    """Canonical signature used to detect numerically duplicate policy trees."""
+-
+     return tuple(
+         (i, j, action.kind, action.backend or "", -1 if action.split is None else action.split)
+         for (i, j), action in sorted(policy.items())
+@@ -248,10 +282,10 @@
+                 "comparable_component": spec.comparable_component,
+                 "excluded_components": spec.excluded_components,
+                 "common_environment": (
+-                    "same ordered trace, same measured terminal costs when required, same corrected "
+-                    "Merkle query cost, same fault positions as Pareto-HNDT"
++                    "same ordered trace, same admissible terminal/query cost oracle, "
++                    "same fault positions as Pareto-DPS"
+                 ),
+-                "claim_guard": "common-testbed/objective adaptation; not a full-system reproduction",
++                "claim_guard": spec.claim_guard,
+             }
+         )
+     return rows
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/hndt/pareto.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/pareto.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/pareto.py	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/pareto.py	2026-10-06 11:16:07.369725926 +0000
+@@ -129,13 +129,9 @@
+     act = label.action
+     if act.kind == "settle":
+         backend = act.backend or ""
+-        return (
+-            label.max_rounds,
+-            0,
+-            0 if backend == "native" else 1,
+-            backend,
+-            -1,
+-        )
++        # Action identifiers are opaque to the optimizer; lexical order is a
++        # platform-neutral tertiary tie-break only.
++        return (label.max_rounds, 0, backend, -1)
+     split = -1 if act.split is None else int(act.split)
+     i, j = label.interval
+     # Compare twice the distance to the midpoint using integers.
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/hndt/sensitivity.py block_chain_paper_work/block_chain_paper-main/experiments/hndt/sensitivity.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/hndt/sensitivity.py	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/hndt/sensitivity.py	2026-10-06 11:17:24.678257559 +0000
+@@ -49,7 +49,12 @@
+     def q(i: int, j: int, k: int) -> float:
+         return factor * model.checked_query_cost(i, j, k)
+ 
+-    return CostModel(model.n, model.terminal_costs, q)
++    return CostModel(
++        model.n, model.terminal_costs, q,
++        terminal_capabilities=model.terminal_capabilities,
++        metadata=model.metadata,
++        backend_priority=model.backend_priority,
++    )
+ 
+ 
+ def perturb_cost_model(
+@@ -94,4 +99,9 @@
+         base = model.checked_query_cost(i, j, k)
+         return base * query_factors.get((i, j, k), 1.0)
+ 
+-    return CostModel(model.n, terminal, q)
++    return CostModel(
++        model.n, terminal, q,
++        terminal_capabilities=model.terminal_capabilities,
++        metadata=model.metadata,
++        backend_priority=model.backend_priority,
++    )
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/run_cost_regimes.py block_chain_paper_work/block_chain_paper-main/experiments/run_cost_regimes.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/run_cost_regimes.py	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/run_cost_regimes.py	2026-10-06 11:18:49.028755274 +0000
+@@ -0,0 +1,115 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++"""Platform-independent cost-regime study for Pareto-DPS.
++
++This is not a CKB simulation.  It uses dimensionless normalized verification
++costs to expose when heterogeneous terminal costs and interaction costs create a
++non-trivial Pareto opportunity.
++"""
++
++import argparse
++import csv
++import sys
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++from hndt.core import CostModel, solve_hndt
++from hndt.dps import from_cost_model, solve_pareto_dps
++from hndt.evaluate import evaluate_policy, weighted_mean_cost
++from hndt.pareto import solve_pareto_hndt
++
++
++def parse_args():
++    p = argparse.ArgumentParser(description="Run normalized Pareto-DPS cost-regime sweeps")
++    p.add_argument("--n", type=int, default=12)
++    p.add_argument("--max-terminal-span", type=int, default=4)
++    p.add_argument("--heterogeneity", default="0,0.25,0.5,1,2")
++    p.add_argument("--query-ratio", default="0.1,0.25,0.5,1,2,4,8")
++    p.add_argument("--out", required=True)
++    return p.parse_args()
++
++
++def make_model(n: int, h: float, rho: float, max_span: int) -> CostModel:
++    if n <= 1:
++        raise ValueError("n must be > 1")
++    # Deterministic centered shape; h=0 gives homogeneous terminal work.
++    shape = [((7 * t + 3) % n) / max(1, n - 1) for t in range(n)]
++    atom = [1.0 + h * x for x in shape]
++    typical = sorted(atom)[n // 2]
++    q = rho * typical
++
++    terminal = {}
++    for span in range(1, min(max_span, n) + 1):
++        for i in range(n - span + 1):
++            j = i + span
++            # Generic replay/check cost: additive work plus a small interval
++            # setup term.  No platform-specific quantity is assumed.
++            terminal[(i, j)] = {"replay": sum(atom[i:j]) + 0.05 * span}
++
++    return CostModel(
++        n,
++        terminal,
++        lambda i, j, k: q,
++        terminal_capabilities={"replay": {"replay", "one-step"}},
++        metadata={
++            "platform": "normalized-generic",
++            "cost_unit": "normalized-unit",
++            "trace_granularity": "primitive-transition",
++        },
++    )
++
++
++def main():
++    args = parse_args()
++    if args.n <= 1:
++        raise ValueError("--n must be > 1")
++    hs = [float(x) for x in args.heterogeneity.split(",") if x.strip()]
++    rhos = [float(x) for x in args.query_ratio.split(",") if x.strip()]
++    out = Path(args.out)
++    out.mkdir(parents=True, exist_ok=True)
++
++    rows = []
++    for h in hs:
++        for rho in rhos:
++            model = make_model(args.n, h, rho, args.max_terminal_span)
++            scalar = solve_hndt(model)
++            pareto = solve_pareto_hndt(model)
++            generic = solve_pareto_dps(from_cost_model(model))
++            if generic.worst_optimum_exact != pareto.worst_optimum_exact:
++                raise AssertionError("generic and binary Pareto solvers disagree")
++            scalar_paths = evaluate_policy(model, scalar.action)
++            scalar_mean = weighted_mean_cost(scalar_paths)
++            pareto_paths = evaluate_policy(model, pareto.policy)
++            pareto_mean = weighted_mean_cost(pareto_paths)
++            gain = 0.0 if scalar_mean == 0 else 100.0 * (scalar_mean - pareto_mean) / scalar_mean
++            mean_first = min(pareto.root_frontier, key=lambda x: (x.mean_exact, x.worst_exact))
++            rows.append(
++                {
++                    "n": args.n,
++                    "heterogeneity": h,
++                    "query_ratio": rho,
++                    "root_frontier_size": len(pareto.root_frontier),
++                    "scalar_worst": scalar.optimum,
++                    "pareto_worst": pareto.worst_optimum,
++                    "scalar_expected": scalar_mean,
++                    "pareto_expected": pareto_mean,
++                    "minimax_safe_expected_gain_pct": gain,
++                    "mean_first_worst_ratio": mean_first.worst_cost / pareto.worst_optimum,
++                    "pareto_max_rounds": pareto.max_rounds,
++                }
++            )
++
++    path = out / "cost_regimes.csv"
++    with path.open("w", newline="", encoding="utf-8") as f:
++        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
++        writer.writeheader()
++        writer.writerows(rows)
++    print(path)
++
++
++if __name__ == "__main__":
++    main()
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/run_experiment.py block_chain_paper_work/block_chain_paper-main/experiments/run_experiment.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/run_experiment.py	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/run_experiment.py	2026-10-06 11:20:43.677334217 +0000
+@@ -14,6 +14,7 @@
+ 
+ from hndt.baselines import (
+     direct_native_policy,
++    direct_verification_policy,
+     fixed_g_policy,
+     height_limited_mean_atomic_policy,
+     midpoint_adaptive_stop_policy,
+@@ -24,6 +25,7 @@
+ )
+ from hndt.core import CostModel, solve_hndt, solve_hndt_round_budget
+ from hndt.evaluate import evaluate_policy, summarize, weighted_mean_cost
++from hndt.dps import from_cost_model, dps_to_legacy_policy, solve_pareto_dps
+ from hndt.io import build_model, validate_atomic_coverage
+ from hndt.literature_baselines import (
+     literature_baselines,
+@@ -39,14 +41,14 @@
+ from hndt.sensitivity import fault_weight_profile, scale_query_costs
+ 
+ 
+-PROPOSAL_NAME = "Pareto-HNDT (minimax-safe)"
+-SCALAR_HNDT_NAME = "Ablation: scalar HNDT (minimax only)"
+-MEAN_FIRST_NAME = "Ablation: Pareto mean-first endpoint"
++PROPOSAL_NAME = "Pareto-DPS (minimax-safe)"
++SCALAR_HNDT_NAME = "Ablation: scalar DPS/HNDT binary minimax"
++MEAN_FIRST_NAME = "Ablation: Pareto-DPS mean-first endpoint"
+ 
+ 
+ def parse_args():
+     p = argparse.ArgumentParser(
+-        description="Run the Pareto-HNDT/CellVG ordered-trace dispute experiment"
++        description="Run platform-neutral Pareto-DPS with the CKB-VM adapter or supplied measurements"
+     )
+     p.add_argument("--demo", action="store_true", help="Use the bundled LeNet synthetic costs for code sanity checks")
+     p.add_argument("--synthetic-data", action="store_true", help="Mark explicitly supplied input files as synthetic/non-manuscript data")
+@@ -121,7 +123,12 @@
+                 )
+             new_backends["native"] = homogenized
+         terminal[(i, j)] = new_backends
+-    return CostModel(model.n, terminal, model.query_cost)
++    return CostModel(
++        model.n, terminal, model.query_cost,
++        terminal_capabilities=model.terminal_capabilities,
++        metadata=model.metadata,
++        backend_priority=model.backend_priority,
++    )
+ 
+ 
+ def _slug(name: str) -> str:
+@@ -175,8 +182,8 @@
+ 
+     grouped = {}
+     for spec, policy in executed:
+-        is_midpoint_system = spec.baseline_class in {"optimistic-system", "optimistic-ml"}
+-        domain = "midpoint-system-family" if is_midpoint_system else spec.key
++        is_midpoint_system = spec.baseline_class == "binary-localization"
++        domain = "binary-localization-family" if is_midpoint_system else spec.key
+         grouped.setdefault((domain, policy_signature(policy)), []).append((spec, policy))
+ 
+     groups = []
+@@ -184,9 +191,9 @@
+         specs = [spec for spec, _ in members]
+         representative = members[0][1]
+         if len(specs) > 1 and all(
+-            s.baseline_class in {"optimistic-system", "optimistic-ml"} for s in specs
++            s.baseline_class == "binary-localization" for s in specs
+         ):
+-            name = f"Prior-work midpoint/pinpoint family ({len(specs)} adapted policies)"
++            name = f"Prior-work binary-localization family ({len(specs)} projections)"
+         elif len(specs) > 1:
+             name = f"Equivalent literature policy family ({len(specs)} adaptations)"
+         else:
+@@ -353,14 +360,23 @@
+     # minimax-preserving mean minimization. Uniform fault weights are used, so
+     # no learned prior or tunable scalarization coefficient is introduced.
+     pareto = solve_pareto_hndt(model, fault_weights=fault_weights, collect_stats=args.collect_pareto_stats)
+-    if abs(pareto.worst_optimum - h.optimum) > 1e-9:
++    generic = solve_pareto_dps(from_cost_model(model), fault_weights=fault_weights)
++    if pareto.worst_optimum_exact != h.optimum_exact:
++        raise AssertionError(
++            "Pareto refinement must recover the exact scalar minimax optimum; "
++            f"got {pareto.worst_optimum_exact} vs {h.optimum_exact}"
++        )
++    if (
++        generic.worst_optimum_exact != pareto.worst_optimum_exact
++        or generic.expected_at_worst_exact != pareto.mean_at_worst_optimum_exact
++    ):
+         raise AssertionError(
+-            "Pareto-HNDT must recover the scalar HNDT minimax optimum; "
+-            f"got {pareto.worst_optimum} vs {h.optimum}"
++            "generic Pareto-DPS and the legacy binary specialization disagree"
+         )
++    proposal_policy = dps_to_legacy_policy(generic.selected)
+ 
+     policies = {
+-        PROPOSAL_NAME: pareto.policy,
++        PROPOSAL_NAME: proposal_policy,
+         SCALAR_HNDT_NAME: h.action,
+         MEAN_FIRST_NAME: mean_first_policy(pareto),
+     }
+@@ -440,18 +456,18 @@
+ 
+     optional_status = []
+     try:
+-        name = "Ablation: direct full native"
+-        policies[name] = direct_native_policy(model)
++        name = "Ablation: direct full verification"
++        policies[name] = direct_verification_policy(model)
+         categories[name] = "extreme internal ablation"
+         optional_status.append({"strategy": name, "status": "executed", "reason": ""})
+     except ValueError as exc:
+         optional_status.append(
+-            {"strategy": "Ablation: direct full native", "status": "skipped", "reason": str(exc)}
++            {"strategy": "Ablation: direct full verification", "status": "skipped", "reason": str(exc)}
+         )
+ 
+     if args.round_budget is not None:
+         rb = solve_hndt_round_budget(model, args.round_budget)
+-        name = f"Ablation: scalar HNDT round budget R={args.round_budget}"
++        name = f"Ablation: scalar binary DPS round budget R={args.round_budget}"
+         policies[name] = rb.action
+         categories[name] = "latency ablation"
+ 
+@@ -465,9 +481,9 @@
+     proposal_mean = _mean(paths[PROPOSAL_NAME], fault_weights)
+     scalar_mean = _mean(paths[SCALAR_HNDT_NAME], fault_weights)
+     if abs(proposal_worst - scalar_worst) > 1e-9:
+-        raise AssertionError("Pareto-HNDT changed the exact minimax optimum")
++        raise AssertionError("Pareto-DPS changed the exact minimax optimum")
+     if proposal_mean > scalar_mean + 1e-9:
+-        raise AssertionError("Pareto-HNDT must not worsen mean cost among minimax-optimal policies")
++        raise AssertionError("Pareto-DPS must not worsen expected cost among minimax-optimal policies")
+     if abs(proposal_mean - pareto.mean_at_worst_optimum) > 1e-8:
+         raise AssertionError(
+             "evaluated weighted mean must match Pareto objective: "
+@@ -484,7 +500,9 @@
+         summaries.append(row)
+     write_csv(out / "summary.csv", summaries)
+     write_fault_paths(out / "fault_costs.csv", paths, fault_weights=fault_weights)
+-    write_policy_json(out / "pareto_hndt_policy.json", pareto.policy)
++    write_policy_json(out / "pareto_dps_policy.json", proposal_policy)
++    # Backward-compatible filename for older paper scripts.
++    write_policy_json(out / "pareto_hndt_policy.json", proposal_policy)
+     write_policy_json(out / "hndt_scalar_policy.json", h.action)
+     write_policy_json(out / "pareto_mean_first_policy.json", policies[MEAN_FIRST_NAME])
+     write_csv(out / "pareto_frontier.csv", pareto_frontier_rows(pareto))
+@@ -676,12 +694,13 @@
+         },
+     ]
+     write_csv(out / "heterogeneity_ablation.csv", ablation)
++    write_policy_json(out / "pareto_dps_policy_homogenized.json", ph.policy)
+     write_policy_json(out / "pareto_hndt_policy_homogenized.json", ph.policy)
+     write_policy_json(out / "hndt_scalar_policy_homogenized.json", hh.action)
+ 
+     gain_rows = [
+         {
+-            "comparison": "Pareto-HNDT vs scalar HNDT",
++            "comparison": "Pareto-DPS vs scalar binary DPS",
+             "pareto_worst": proposal_worst,
+             "scalar_worst": scalar_worst,
+             "worst_improvement": scalar_worst - proposal_worst,
+@@ -692,7 +711,7 @@
+                 100.0 * (scalar_mean - proposal_mean) / scalar_mean if scalar_mean else 0.0
+             ),
+             "guarantee": (
+-                "worst costs must be equal; Pareto mean must be <= scalar-HNDT mean"
++                "worst costs must be equal; Pareto expected cost must be <= scalar minimax expected cost"
+             ),
+         }
+     ]
+@@ -709,6 +728,11 @@
+         "fault_weight_profile": args.fault_weights,
+         "fault_weights": list(fault_weights),
+         "proposal": PROPOSAL_NAME,
++        "platform_adapter": model.metadata.get("platform", "user-supplied"),
++        "cost_unit": model.metadata.get("cost_unit", "arbitrary"),
++        "proposal_core": "platform-independent finite-partition Pareto-DPS",
++        "pareto_dps_worst_optimum": pareto.worst_optimum,
++        "pareto_dps_expected_at_optimum": pareto.mean_at_worst_optimum,
+         "pareto_hndt_worst_optimum": pareto.worst_optimum,
+         "pareto_hndt_mean_at_optimum": pareto.mean_at_worst_optimum,
+         "pareto_root_frontier_size": len(pareto.root_frontier),
+@@ -746,9 +770,10 @@
+             }
+         ),
+         "method_note": (
+-            "Pareto-HNDT computes the exact nondominated frontier of worst-case and weighted-mean "
+-            "fault-path cost, then preserves the exact scalar HNDT minimax optimum while minimizing "
+-            "mean cost among all minimax-optimal policies. No scalarization hyperparameter is used."
++            "Pareto-DPS is platform independent. It computes the exact nondominated antichain "
++            "of worst-case cost and weighted expectation mass over admissible terminal and query "
++            "actions, then preserves the exact scalar minimax optimum while minimizing expected "
++            "cost inside the minimax-optimal class. The CKB-VM path is only one cost adapter."
+         ),
+     }
+     (out / "run_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/run_generic_instance.py block_chain_paper_work/block_chain_paper-main/experiments/run_generic_instance.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/run_generic_instance.py	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/run_generic_instance.py	2026-10-06 11:11:50.266963886 +0000
+@@ -0,0 +1,98 @@
++#!/usr/bin/env python3
++from __future__ import annotations
++
++import argparse
++import csv
++import json
++import sys
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++from hndt.dps import (
++    expected_cost_of_dps_policy,
++    reconstruct_dps_policy,
++    solve_pareto_dps,
++    solve_scalar_dps,
++)
++from hndt.generic_io import build_verification_instance
++
++
++def parse_args():
++    p = argparse.ArgumentParser(
++        description="Run platform-independent Pareto-DPS on a generic verification instance"
++    )
++    p.add_argument("--trace", required=True)
++    p.add_argument("--terminal-actions", required=True)
++    p.add_argument("--query-actions", required=True)
++    p.add_argument("--metadata", default=None)
++    p.add_argument("--out", required=True)
++    return p.parse_args()
++
++
++def main():
++    args = parse_args()
++    out = Path(args.out)
++    out.mkdir(parents=True, exist_ok=True)
++
++    instance = build_verification_instance(
++        args.trace,
++        args.terminal_actions,
++        args.query_actions,
++        args.metadata,
++    )
++    pareto = solve_pareto_dps(instance)
++    scalar = solve_scalar_dps(instance)
++    pareto_policy = reconstruct_dps_policy(pareto.selected)
++    scalar_policy = reconstruct_dps_policy(scalar.selected)
++    scalar_expected = expected_cost_of_dps_policy(instance, scalar_policy)
++
++    with (out / "pareto_frontier.csv").open("w", newline="", encoding="utf-8") as f:
++        writer = csv.DictWriter(
++            f,
++            fieldnames=["worst_cost", "expected_cost", "max_rounds", "root_action", "root_cuts"],
++        )
++        writer.writeheader()
++        for label in pareto.root_frontier:
++            writer.writerow(
++                {
++                    "worst_cost": float(label.worst_exact),
++                    "expected_cost": float(label.mass_exact),
++                    "max_rounds": label.max_rounds,
++                    "root_action": label.action.action_id,
++                    "root_cuts": ";".join(str(x) for x in label.action.cuts),
++                }
++            )
++
++    summary = {
++        "method": "Pareto-DPS",
++        "n": instance.n,
++        "metadata": dict(instance.metadata),
++        "pareto_worst": float(pareto.worst_optimum_exact),
++        "pareto_expected": float(pareto.expected_at_worst_exact),
++        "scalar_worst": float(scalar.optimum_exact),
++        "scalar_expected": float(scalar_expected),
++        "minimax_preserved": pareto.worst_optimum_exact == scalar.optimum_exact,
++        "root_frontier_size": len(pareto.root_frontier),
++    }
++    (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
++
++    def dump_policy(path, policy):
++        rows = {}
++        for (i, j), action in sorted(policy.items()):
++            rows[f"{i}:{j}"] = {
++                "kind": action.kind,
++                "action_id": action.action_id,
++                "cuts": list(action.cuts),
++            }
++        path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
++
++    dump_policy(out / "pareto_policy.json", pareto_policy)
++    dump_policy(out / "scalar_policy.json", scalar_policy)
++    print(json.dumps(summary, indent=2))
++
++
++if __name__ == "__main__":
++    main()
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/tests/test_baselines.py block_chain_paper_work/block_chain_paper-main/experiments/tests/test_baselines.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/tests/test_baselines.py	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/tests/test_baselines.py	2026-10-06 11:22:48.391492495 +0000
+@@ -28,7 +28,8 @@
+     agatha_gpp_chain_policy,
+     arbitrum_ivp_policy,
+     literature_baselines,
+-    opml_phase1_policy,
++    opml_single_phase_policy,
++    opml_outer_phase_projection_policy,
+     policy_signature,
+     rdoc_binary_search_policy,
+     truebit_verification_game_policy,
+@@ -94,7 +95,8 @@
+                 "rdoc_binary_search",
+                 "truebit_verification_game",
+                 "arbitrum_ivp",
+-                "opml_phase1",
++                "opml_single_phase",
++                "opml_outer_phase_projection",
+                 "agatha_gpp_chain",
+                 "kirkpatrick_klawe_minimax",
+                 "hu_tucker_mean",
+@@ -115,7 +117,7 @@
+             rdoc_binary_search_policy(model),
+             truebit_verification_game_policy(model),
+             arbitrum_ivp_policy(model),
+-            opml_phase1_policy(model),
++            opml_outer_phase_projection_policy(model),
+             agatha_gpp_chain_policy(model),
+         ]
+         signatures = [policy_signature(p) for p in policies]
+@@ -127,19 +129,57 @@
+             self.assertEqual(len(paths), 5)
+             self.assertTrue(all(path.backend == "native" for path in paths))
+ 
+-    def test_literature_adaptations_require_native_atomic_arbitration(self):
+-        terminal = {(0, 1): {"native": 1.0}, (1, 2): {"zkvm": 2.0}}
+-        model = CostModel(2, terminal, lambda i, j, k: 1.0)
++    def test_literature_adaptations_use_capabilities_not_backend_names(self):
++        terminal = {(0, 1): {"replayA": 1.0}, (1, 2): {"replayA": 2.0}}
++        model = CostModel(
++            2, terminal, lambda i, j, k: 1.0,
++            terminal_capabilities={"replayA": {"one-step", "replay"}},
++        )
+         for builder in [
+             rdoc_binary_search_policy,
+             truebit_verification_game_policy,
+             arbitrum_ivp_policy,
+-            opml_phase1_policy,
++            opml_outer_phase_projection_policy,
+             agatha_gpp_chain_policy,
+         ]:
+             with self.subTest(builder=builder.__name__):
+-                with self.assertRaises(ValueError):
+-                    builder(model)
++                policy = builder(model)
++                self.assertTrue(
++                    all(p.backend == "replayA" for p in evaluate_policy(model, policy))
++                )
++
++    def test_opml_single_phase_refuses_operator_trace(self):
++        terminal = {(0, 1): {"step": 1.0}, (1, 2): {"step": 2.0}}
++        model = CostModel(
++            2, terminal, lambda i, j, k: 1.0,
++            terminal_capabilities={"step": {"one-step"}},
++            metadata={"trace_granularity": "operator"},
++        )
++        with self.assertRaises(ValueError):
++            opml_single_phase_policy(model)
++
++    def test_zk_baseline_uses_capability_not_literal_backend_name(self):
++        terminal = {
++            (0, 1): {"proofA": 3.0},
++            (1, 2): {"proofA": 4.0},
++        }
++        model = CostModel(
++            2, terminal, lambda i, j, k: 1.0,
++            terminal_capabilities={"proofA": {"zk-proof"}},
++        )
++        paths = evaluate_policy(model, midpoint_operator_zk_policy(model))
++        self.assertTrue(all(p.backend == "proofA" for p in paths))
++
++    def test_opml_single_phase_runs_on_microinstruction_trace(self):
++        terminal = {(i, i + 1): {"judge-step": 1.0} for i in range(4)}
++        model = CostModel(
++            4, terminal, lambda i, j, k: 1.0,
++            terminal_capabilities={"judge-step": {"one-step"}},
++            metadata={"trace_granularity": "vm-microinstruction"},
++        )
++        policy = opml_single_phase_policy(model)
++        self.assertEqual(policy[(0, 4)].split, 2)
++        self.assertTrue(all(p.backend == "judge-step" for p in evaluate_policy(model, policy)))
+ 
+     def test_split_only_ablation_forces_atomic_leaves(self):
+         terminal = {(i, i + 1): {"native": 5.0} for i in range(4)}
+@@ -237,6 +277,68 @@
+         with self.assertRaises(ValueError):
+             height_limited_mean_atomic_policy(model, max_rounds=2)
+ 
++    def test_classical_objective_adapters_match_exhaustive_small_trees(self):
++        # Independent exhaustive oracle over all ordered full binary trees.
++        costs = [7.0, 1.0, 9.0, 2.0, 5.0]
++        q = 2.0
++        terminal = {(i, i + 1): {"step": costs[i]} for i in range(len(costs))}
++        model = CostModel(
++            len(costs), terminal, lambda i, j, k: q,
++            terminal_capabilities={"step": {"one-step"}},
++        )
++
++        def all_depths(i, j):
++            if j - i == 1:
++                return [(0,)]
++            out = []
++            for k in range(i + 1, j):
++                for left in all_depths(i, k):
++                    for right in all_depths(k, j):
++                        out.append(tuple(d + 1 for d in left + right))
++            return out
++
++        depths = all_depths(0, len(costs))
++        exhaustive_worst = min(max(c + q * d for c, d in zip(costs, ds)) for ds in depths)
++        exhaustive_mean = min(
++            sum(c + q * d for c, d in zip(costs, ds)) / len(costs)
++            for ds in depths
++        )
++
++        kk_paths = evaluate_policy(model, kirkpatrick_klawe_atomic_policy(model))
++        ht_paths = evaluate_policy(model, hu_tucker_atomic_policy(model))
++        self.assertAlmostEqual(max(p.total_cost for p in kk_paths), exhaustive_worst)
++        self.assertAlmostEqual(
++            sum(p.total_cost for p in ht_paths) / len(ht_paths), exhaustive_mean
++        )
++
++    def test_height_limited_objective_matches_exhaustive_small_trees(self):
++        costs = [4.0, 9.0, 2.0, 8.0]
++        q = 1.5
++        terminal = {(i, i + 1): {"step": costs[i]} for i in range(len(costs))}
++        model = CostModel(
++            len(costs), terminal, lambda i, j, k: q,
++            terminal_capabilities={"step": {"one-step"}},
++        )
++
++        def all_depths(i, j):
++            if j - i == 1:
++                return [(0,)]
++            out = []
++            for k in range(i + 1, j):
++                for left in all_depths(i, k):
++                    for right in all_depths(k, j):
++                        out.append(tuple(d + 1 for d in left + right))
++            return out
++
++        feasible = [ds for ds in all_depths(0, 4) if max(ds) <= 2]
++        exhaustive = min(
++            sum(c + q * d for c, d in zip(costs, ds)) / 4
++            for ds in feasible
++        )
++        policy = height_limited_mean_atomic_policy(model, max_rounds=2)
++        paths = evaluate_policy(model, policy)
++        self.assertAlmostEqual(sum(p.total_cost for p in paths) / 4, exhaustive)
++
+     def test_direct_native_requires_full_interval_measurement(self):
+         model = CostModel(2, {(0, 1): {"native": 1.0}, (1, 2): {"native": 1.0}}, lambda i, j, k: 1.0)
+         with self.assertRaises(ValueError):
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/experiments/tests/test_dps_generic.py block_chain_paper_work/block_chain_paper-main/experiments/tests/test_dps_generic.py
+--- block_chain_paper_original/block_chain_paper-main/experiments/tests/test_dps_generic.py	1970-01-01 00:00:00.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/experiments/tests/test_dps_generic.py	2026-10-06 11:16:40.120078425 +0000
+@@ -0,0 +1,153 @@
++import csv
++import json
++import sys
++import tempfile
++import unittest
++from fractions import Fraction
++from pathlib import Path
++
++EXP = Path(__file__).resolve().parents[1]
++if str(EXP) not in sys.path:
++    sys.path.insert(0, str(EXP))
++
++from hndt.core import CostModel, solve_hndt
++from hndt.dps import (
++    QueryActionSpec,
++    TerminalActionSpec,
++    VerificationInstance,
++    dps_to_legacy_policy,
++    expected_cost_of_dps_policy,
++    from_cost_model,
++    reconstruct_dps_policy,
++    solve_pareto_dps,
++    solve_scalar_dps,
++)
++from hndt.generic_io import build_verification_instance
++from hndt.pareto import solve_pareto_hndt
++
++
++class GenericDPSTests(unittest.TestCase):
++    def test_binary_adapter_matches_legacy_pareto_exactly(self):
++        terminal = {
++            (0, 1): {"replayA": 10},
++            (1, 2): {"replayA": 3},
++            (2, 3): {"replayA": 7},
++            (0, 2): {"replayA": 9},
++        }
++        model = CostModel(
++            3,
++            terminal,
++            lambda i, j, k: 2,
++            terminal_capabilities={"replayA": {"replay", "one-step"}},
++        )
++        legacy = solve_pareto_hndt(model)
++        generic = solve_pareto_dps(from_cost_model(model))
++        self.assertEqual(generic.worst_optimum_exact, legacy.worst_optimum_exact)
++        self.assertEqual(generic.expected_at_worst_exact, legacy.mean_at_worst_optimum_exact)
++        self.assertEqual(dps_to_legacy_policy(generic.selected), legacy.policy)
++
++    def test_finite_partition_query_can_be_ternary(self):
++        n = 3
++        terminals = {
++            (0, 1): (TerminalActionSpec("replay", 5),),
++            (1, 2): (TerminalActionSpec("replay", 5),),
++            (2, 3): (TerminalActionSpec("replay", 5),),
++        }
++
++        def queries(i, j):
++            if (i, j) == (0, 3):
++                return (QueryActionSpec("ternary", (1, 2), 1),)
++            return ()
++
++        instance = VerificationInstance(n, terminals, queries)
++        result = solve_pareto_dps(instance)
++        self.assertEqual(result.worst_optimum_exact, Fraction(6))
++        self.assertEqual(result.selected.action.cuts, (1, 2))
++        policy = reconstruct_dps_policy(result.selected)
++        self.assertEqual(expected_cost_of_dps_policy(instance, policy), Fraction(6))
++
++    def test_positive_cost_scaling_preserves_policy(self):
++        terminals = {
++            (0, 1): (TerminalActionSpec("a", 2),),
++            (1, 2): (TerminalActionSpec("a", 9),),
++            (0, 2): (TerminalActionSpec("a", 12),),
++        }
++        base = VerificationInstance(
++            2,
++            terminals,
++            lambda i, j: (QueryActionSpec("q", (1,), 1),) if (i, j) == (0, 2) else (),
++        )
++        scale = Fraction(7, 3)
++        terminals_scaled = {
++            k: tuple(TerminalActionSpec(x.action_id, x.cost * scale, x.capabilities) for x in v)
++            for k, v in terminals.items()
++        }
++        scaled = VerificationInstance(
++            2,
++            terminals_scaled,
++            lambda i, j: (QueryActionSpec("q", (1,), scale),) if (i, j) == (0, 2) else (),
++        )
++        a = solve_pareto_dps(base)
++        b = solve_pareto_dps(scaled)
++        self.assertEqual(reconstruct_dps_policy(a.selected), reconstruct_dps_policy(b.selected))
++        self.assertEqual(b.worst_optimum_exact, scale * a.worst_optimum_exact)
++        self.assertEqual(b.expected_at_worst_exact, scale * a.expected_at_worst_exact)
++
++    def test_scalar_dps_preserves_minimax_but_can_have_larger_expectation(self):
++        terminals = {
++            (0, 1): (TerminalActionSpec("a", 10),),
++            (1, 2): (TerminalActionSpec("a", 1), TerminalActionSpec("b", 9)),
++        }
++
++        def queries(i, j):
++            return (QueryActionSpec("split", (1,), 0),) if (i, j) == (0, 2) else ()
++
++        instance = VerificationInstance(2, terminals, queries)
++        pareto = solve_pareto_dps(instance, fault_weights=[0, 1])
++        scalar = solve_scalar_dps(instance, fault_weights=[0, 1])
++        self.assertEqual(pareto.worst_optimum_exact, scalar.optimum_exact)
++        p_mean = pareto.expected_at_worst_exact
++        s_mean = expected_cost_of_dps_policy(instance, reconstruct_dps_policy(scalar.selected), [0, 1])
++        self.assertLessEqual(p_mean, s_mean)
++
++    def test_generic_csv_has_no_platform_specific_columns(self):
++        with tempfile.TemporaryDirectory() as td:
++            td = Path(td)
++            trace = td / "trace.csv"
++            terminals = td / "terminals.csv"
++            queries = td / "queries.csv"
++            metadata = td / "metadata.json"
++            trace.write_text("index,name\n0,a\n1,b\n", encoding="utf-8")
++            terminals.write_text(
++                "i,j,action_id,cost,capabilities\n"
++                "0,1,replayA,10,one-step;replay\n"
++                "1,2,replayA,3,one-step;replay\n",
++                encoding="utf-8",
++            )
++            queries.write_text(
++                "i,j,action_id,cuts,cost\n0,2,binary,1,2\n",
++                encoding="utf-8",
++            )
++            metadata.write_text(json.dumps({"cost_unit": "microseconds"}), encoding="utf-8")
++            instance = build_verification_instance(trace, terminals, queries, metadata)
++            result = solve_pareto_dps(instance)
++            self.assertEqual(instance.metadata["cost_unit"], "microseconds")
++            self.assertEqual(result.worst_optimum_exact, Fraction(12))
++
++    def test_scalar_binary_solver_uses_exact_decimal_comparisons(self):
++        model = CostModel(
++            2,
++            {
++                (0, 1): {"a": 0.1},
++                (1, 2): {"a": 0.2},
++                (0, 2): {"a": 0.3000000000001},
++            },
++            lambda i, j, k: 0,
++        )
++        result = solve_hndt(model)
++        self.assertEqual(result.optimum_exact, Fraction("0.2"))
++        self.assertEqual(result.action[(0, 2)].kind, "split")
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/run_tests.ps1 block_chain_paper_work/block_chain_paper-main/run_tests.ps1
+--- block_chain_paper_original/block_chain_paper-main/run_tests.ps1	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/run_tests.ps1	2026-10-06 11:22:03.090166243 +0000
+@@ -12,9 +12,16 @@
+ try {
+     python experiments/run_experiment.py --demo --out $TmpOut --collect-pareto-stats | Out-Null
+     python experiments/run_campaign.py --campaign experiments/config/campaign_demo.json --out (Join-Path $TmpOut "campaign") | Out-Null
++    python experiments/run_generic_instance.py `
++      --trace experiments/data/generic_demo/trace.csv `
++      --terminal-actions experiments/data/generic_demo/terminal_actions.csv `
++      --query-actions experiments/data/generic_demo/query_actions.csv `
++      --metadata experiments/data/generic_demo/metadata.json `
++      --out (Join-Path $TmpOut "generic") | Out-Null
++    python experiments/run_cost_regimes.py --n 6 --heterogeneity 0,1 --query-ratio 0.25,1 --out (Join-Path $TmpOut "cost_regimes") | Out-Null
+ }
+ finally {
+     if (Test-Path $TmpOut) { Remove-Item -Recurse -Force $TmpOut }
+ }
+-Write-Host "All unit tests, trace-vector checks, and synthetic integration/campaign smoke tests passed."
++Write-Host "All unit tests, trace-vector checks, CKB adapter smoke tests, and generic Pareto-DPS smoke tests passed."
+ Write-Host "The smoke test uses synthetic data only and does not modify manuscript result tables."
+diff -ruN '--exclude=__pycache__' '--exclude=*.pyc' block_chain_paper_original/block_chain_paper-main/run_tests.sh block_chain_paper_work/block_chain_paper-main/run_tests.sh
+--- block_chain_paper_original/block_chain_paper-main/run_tests.sh	2026-10-06 09:02:06.000000000 +0000
++++ block_chain_paper_work/block_chain_paper-main/run_tests.sh	2026-10-06 11:21:43.483637246 +0000
+@@ -31,6 +31,15 @@
+ trap 'rm -rf "$TMP_OUT"' EXIT
+ python3 experiments/run_experiment.py --demo --out "$TMP_OUT" --collect-pareto-stats >/dev/null
+ python3 experiments/run_campaign.py --campaign experiments/config/campaign_demo.json --out "$TMP_OUT/campaign" >/dev/null
++python3 experiments/run_generic_instance.py \
++  --trace experiments/data/generic_demo/trace.csv \
++  --terminal-actions experiments/data/generic_demo/terminal_actions.csv \
++  --query-actions experiments/data/generic_demo/query_actions.csv \
++  --metadata experiments/data/generic_demo/metadata.json \
++  --out "$TMP_OUT/generic" >/dev/null
++python3 experiments/run_cost_regimes.py \
++  --n 6 --heterogeneity 0,1 --query-ratio 0.25,1 \
++  --out "$TMP_OUT/cost_regimes" >/dev/null
+ 
+-echo "All unit tests, trace-vector checks, and synthetic integration/campaign smoke tests passed."
++echo "All unit tests, trace-vector checks, CKB adapter smoke tests, and generic Pareto-DPS smoke tests passed."
+ echo "The smoke test uses synthetic data only and does not modify manuscript result tables."

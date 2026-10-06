@@ -1,0 +1,7 @@
+i,j,action_id,cost,capabilities
+0,1,replay,8,one-step;replay
+1,2,replay,3,one-step;replay
+2,3,replay,10,one-step;replay
+3,4,replay,4,one-step;replay
+0,2,replay,9,replay
+2,4,replay,11,replay

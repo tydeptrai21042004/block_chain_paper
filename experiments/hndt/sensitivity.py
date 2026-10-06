@@ -49,7 +49,12 @@ def scale_query_costs(model: CostModel, scale: float) -> CostModel:
     def q(i: int, j: int, k: int) -> float:
         return factor * model.checked_query_cost(i, j, k)
 
-    return CostModel(model.n, model.terminal_costs, q)
+    return CostModel(
+        model.n, model.terminal_costs, q,
+        terminal_capabilities=model.terminal_capabilities,
+        metadata=model.metadata,
+        backend_priority=model.backend_priority,
+    )
 
 
 def perturb_cost_model(
@@ -94,4 +99,9 @@ def perturb_cost_model(
         base = model.checked_query_cost(i, j, k)
         return base * query_factors.get((i, j, k), 1.0)
 
-    return CostModel(model.n, terminal, q)
+    return CostModel(
+        model.n, terminal, q,
+        terminal_capabilities=model.terminal_capabilities,
+        metadata=model.metadata,
+        backend_priority=model.backend_priority,
+    )

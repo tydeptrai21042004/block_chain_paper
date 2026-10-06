@@ -28,7 +28,8 @@ from hndt.literature_baselines import (
     agatha_gpp_chain_policy,
     arbitrum_ivp_policy,
     literature_baselines,
-    opml_phase1_policy,
+    opml_single_phase_policy,
+    opml_outer_phase_projection_policy,
     policy_signature,
     rdoc_binary_search_policy,
     truebit_verification_game_policy,
@@ -94,7 +95,8 @@ class BaselineTests(unittest.TestCase):
                 "rdoc_binary_search",
                 "truebit_verification_game",
                 "arbitrum_ivp",
-                "opml_phase1",
+                "opml_single_phase",
+                "opml_outer_phase_projection",
                 "agatha_gpp_chain",
                 "kirkpatrick_klawe_minimax",
                 "hu_tucker_mean",
@@ -115,7 +117,7 @@ class BaselineTests(unittest.TestCase):
             rdoc_binary_search_policy(model),
             truebit_verification_game_policy(model),
             arbitrum_ivp_policy(model),
-            opml_phase1_policy(model),
+            opml_outer_phase_projection_policy(model),
             agatha_gpp_chain_policy(model),
         ]
         signatures = [policy_signature(p) for p in policies]
@@ -127,19 +129,57 @@ class BaselineTests(unittest.TestCase):
             self.assertEqual(len(paths), 5)
             self.assertTrue(all(path.backend == "native" for path in paths))
 
-    def test_literature_adaptations_require_native_atomic_arbitration(self):
-        terminal = {(0, 1): {"native": 1.0}, (1, 2): {"zkvm": 2.0}}
-        model = CostModel(2, terminal, lambda i, j, k: 1.0)
+    def test_literature_adaptations_use_capabilities_not_backend_names(self):
+        terminal = {(0, 1): {"replayA": 1.0}, (1, 2): {"replayA": 2.0}}
+        model = CostModel(
+            2, terminal, lambda i, j, k: 1.0,
+            terminal_capabilities={"replayA": {"one-step", "replay"}},
+        )
         for builder in [
             rdoc_binary_search_policy,
             truebit_verification_game_policy,
             arbitrum_ivp_policy,
-            opml_phase1_policy,
+            opml_outer_phase_projection_policy,
             agatha_gpp_chain_policy,
         ]:
             with self.subTest(builder=builder.__name__):
-                with self.assertRaises(ValueError):
-                    builder(model)
+                policy = builder(model)
+                self.assertTrue(
+                    all(p.backend == "replayA" for p in evaluate_policy(model, policy))
+                )
+
+    def test_opml_single_phase_refuses_operator_trace(self):
+        terminal = {(0, 1): {"step": 1.0}, (1, 2): {"step": 2.0}}
+        model = CostModel(
+            2, terminal, lambda i, j, k: 1.0,
+            terminal_capabilities={"step": {"one-step"}},
+            metadata={"trace_granularity": "operator"},
+        )
+        with self.assertRaises(ValueError):
+            opml_single_phase_policy(model)
+
+    def test_zk_baseline_uses_capability_not_literal_backend_name(self):
+        terminal = {
+            (0, 1): {"proofA": 3.0},
+            (1, 2): {"proofA": 4.0},
+        }
+        model = CostModel(
+            2, terminal, lambda i, j, k: 1.0,
+            terminal_capabilities={"proofA": {"zk-proof"}},
+        )
+        paths = evaluate_policy(model, midpoint_operator_zk_policy(model))
+        self.assertTrue(all(p.backend == "proofA" for p in paths))
+
+    def test_opml_single_phase_runs_on_microinstruction_trace(self):
+        terminal = {(i, i + 1): {"judge-step": 1.0} for i in range(4)}
+        model = CostModel(
+            4, terminal, lambda i, j, k: 1.0,
+            terminal_capabilities={"judge-step": {"one-step"}},
+            metadata={"trace_granularity": "vm-microinstruction"},
+        )
+        policy = opml_single_phase_policy(model)
+        self.assertEqual(policy[(0, 4)].split, 2)
+        self.assertTrue(all(p.backend == "judge-step" for p in evaluate_policy(model, policy)))
 
     def test_split_only_ablation_forces_atomic_leaves(self):
         terminal = {(i, i + 1): {"native": 5.0} for i in range(4)}
@@ -236,6 +276,68 @@ class BaselineTests(unittest.TestCase):
         self.assertLessEqual(max(p.rounds for p in paths), 3)
         with self.assertRaises(ValueError):
             height_limited_mean_atomic_policy(model, max_rounds=2)
+
+    def test_classical_objective_adapters_match_exhaustive_small_trees(self):
+        # Independent exhaustive oracle over all ordered full binary trees.
+        costs = [7.0, 1.0, 9.0, 2.0, 5.0]
+        q = 2.0
+        terminal = {(i, i + 1): {"step": costs[i]} for i in range(len(costs))}
+        model = CostModel(
+            len(costs), terminal, lambda i, j, k: q,
+            terminal_capabilities={"step": {"one-step"}},
+        )
+
+        def all_depths(i, j):
+            if j - i == 1:
+                return [(0,)]
+            out = []
+            for k in range(i + 1, j):
+                for left in all_depths(i, k):
+                    for right in all_depths(k, j):
+                        out.append(tuple(d + 1 for d in left + right))
+            return out
+
+        depths = all_depths(0, len(costs))
+        exhaustive_worst = min(max(c + q * d for c, d in zip(costs, ds)) for ds in depths)
+        exhaustive_mean = min(
+            sum(c + q * d for c, d in zip(costs, ds)) / len(costs)
+            for ds in depths
+        )
+
+        kk_paths = evaluate_policy(model, kirkpatrick_klawe_atomic_policy(model))
+        ht_paths = evaluate_policy(model, hu_tucker_atomic_policy(model))
+        self.assertAlmostEqual(max(p.total_cost for p in kk_paths), exhaustive_worst)
+        self.assertAlmostEqual(
+            sum(p.total_cost for p in ht_paths) / len(ht_paths), exhaustive_mean
+        )
+
+    def test_height_limited_objective_matches_exhaustive_small_trees(self):
+        costs = [4.0, 9.0, 2.0, 8.0]
+        q = 1.5
+        terminal = {(i, i + 1): {"step": costs[i]} for i in range(len(costs))}
+        model = CostModel(
+            len(costs), terminal, lambda i, j, k: q,
+            terminal_capabilities={"step": {"one-step"}},
+        )
+
+        def all_depths(i, j):
+            if j - i == 1:
+                return [(0,)]
+            out = []
+            for k in range(i + 1, j):
+                for left in all_depths(i, k):
+                    for right in all_depths(k, j):
+                        out.append(tuple(d + 1 for d in left + right))
+            return out
+
+        feasible = [ds for ds in all_depths(0, 4) if max(ds) <= 2]
+        exhaustive = min(
+            sum(c + q * d for c, d in zip(costs, ds)) / 4
+            for ds in feasible
+        )
+        policy = height_limited_mean_atomic_policy(model, max_rounds=2)
+        paths = evaluate_policy(model, policy)
+        self.assertAlmostEqual(sum(p.total_cost for p in paths) / 4, exhaustive)
 
     def test_direct_native_requires_full_interval_measurement(self):
         model = CostModel(2, {(0, 1): {"native": 1.0}, (1, 2): {"native": 1.0}}, lambda i, j, k: 1.0)

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-"""Paper-grounded comparison policies adapted to CellVG's common cost model.
+"""Paper-grounded baseline adapters with explicit fidelity boundaries.
 
-Every adapter has an explicit fidelity boundary.  System papers contribute only
-localization/terminal behavior that can be reproduced on the current ordered
-trace; classical tree papers contribute only the optimization objective that is
-mathematically identical under the adapter's stated assumptions.  Missing
-full-system components are never assigned synthetic costs.
+The adapters compare only components that can be represented faithfully on the
+current ordered-trace cost model.  They use terminal *capabilities* rather than
+platform-specific names.  Missing protocol levels or verifier measurements are
+skipped instead of fabricated.
 """
 
 from dataclasses import dataclass
@@ -37,24 +36,35 @@ class LiteratureBaselineSpec:
     excluded_components: str
     builder: Callable[[CostModel], Policy]
     baseline_class: str = "system"
+    claim_guard: str = "adaptation; not a full-system reproduction"
 
 
-def _midpoint_to_native_atomic(model: CostModel, *, label: str) -> Policy:
-    """Midpoint localization followed by a measured native atomic verifier."""
+def _midpoint_to_atomic_capability(
+    model: CostModel,
+    *,
+    label: str,
+    required_capabilities=frozenset({"one-step"}),
+) -> Policy:
+    """Binary midpoint localization followed by a capability-matched atomic check."""
 
     policy: Policy = {}
 
     def build(i: int, j: int) -> None:
         if j - i == 1:
-            act = _terminal_action(model, i, j, required_backend="native")
+            act = _terminal_action(
+                model,
+                i,
+                j,
+                required_capabilities=required_capabilities,
+            )
             if act is None:
+                caps = ",".join(sorted(required_capabilities))
                 raise ValueError(
-                    f"{label} requires a finite native CKB-VM cost on atomic "
-                    f"interval [{i},{j}]"
+                    f"{label} requires a finite atomic terminal action with "
+                    f"capabilities {{{caps}}} on [{i},{j}]"
                 )
             policy[(i, j)] = act
             return
-
         k = _midpoint(i, j)
         policy[(i, j)] = Action.split_at(k)
         build(i, k)
@@ -64,41 +74,68 @@ def _midpoint_to_native_atomic(model: CostModel, *, label: str) -> Policy:
     return policy
 
 
-
-
 def rdoc_binary_search_policy(model: CostModel) -> Policy:
-    return _midpoint_to_native_atomic(model, label="RDoC binary-search dispute")
+    return _midpoint_to_atomic_capability(model, label="RDoC binary-search localization")
 
 
 def truebit_verification_game_policy(model: CostModel) -> Policy:
-    return _midpoint_to_native_atomic(model, label="TrueBit verification game")
+    return _midpoint_to_atomic_capability(model, label="TrueBit verification game")
+
 
 def arbitrum_ivp_policy(model: CostModel) -> Policy:
-    return _midpoint_to_native_atomic(model, label="Arbitrum-IVP")
+    return _midpoint_to_atomic_capability(model, label="Arbitrum interactive verification")
 
 
-def opml_phase1_policy(model: CostModel) -> Policy:
-    return _midpoint_to_native_atomic(model, label="opML Phase-1")
+def opml_single_phase_policy(model: CostModel) -> Policy:
+    """Faithful one-phase opML projection, only for VM-microinstruction traces.
+
+    One-phase opML bisects a VM execution until one microinstruction remains.
+    Applying that baseline directly to an operator-level trace would silently
+    replace a microinstruction game with operator replay, so it is rejected.
+    """
+
+    granularity = str(model.metadata.get("trace_granularity", "")).strip().lower()
+    if granularity not in {"vm-microinstruction", "microinstruction"}:
+        raise ValueError(
+            "faithful one-phase opML requires a VM-microinstruction trace; "
+            f"current trace_granularity={granularity or 'unspecified'}"
+        )
+    return _midpoint_to_atomic_capability(model, label="opML single-phase")
+
+
+def opml_outer_phase_projection_policy(model: CostModel) -> Policy:
+    """Outer/high-level phase of multi-phase opML on an ordered operator trace.
+
+    This is intentionally labelled a *projection*: the inner VM-microinstruction
+    phase is not represented unless corresponding microtrace measurements exist.
+    """
+
+    return _midpoint_to_atomic_capability(
+        model,
+        label="opML outer-phase projection",
+        required_capabilities=frozenset({"one-step"}),
+    )
 
 
 def agatha_gpp_chain_policy(model: CostModel) -> Policy:
-    return _midpoint_to_native_atomic(model, label="Agatha-GPP chain projection")
+    """Ordered-chain projection of Agatha's graph-based pinpoint protocol."""
+
+    return _midpoint_to_atomic_capability(
+        model,
+        label="Agatha GPP chain projection",
+        required_capabilities=frozenset({"one-step"}),
+    )
 
 
 def zkopml_operator_policy(model: CostModel) -> Policy:
-    """zk-OPML comparable operator-level adaptation.
-
-    The paper localizes by binary search to one ONNX operator and then resolves
-    that operator with a ZK proof.  The adapter is executable only when a finite
-    reproduced ``zkvm`` cost exists for every atomic operator; otherwise it is
-    skipped rather than silently using native CKB verification.
-    """
+    """Operator localization followed by a measured ZK-capable terminal action."""
 
     return midpoint_operator_zk_policy(model)
 
 
-# Backward-compatible aliases for earlier revised archives.
-opml_bisection_policy = opml_phase1_policy
+# Backward-compatible aliases used by older scripts.
+opml_phase1_policy = opml_single_phase_policy
+opml_bisection_policy = opml_outer_phase_projection_policy
 agatha_gpp_policy = agatha_gpp_chain_policy
 
 
@@ -106,127 +143,124 @@ def literature_baselines() -> tuple[LiteratureBaselineSpec, ...]:
     return (
         LiteratureBaselineSpec(
             key="rdoc_binary_search",
-            display_name="RDoC binary-search dispute (common-trace adaptation)",
+            display_name="RDoC binary-search localization (ordered-trace projection)",
             paper="Canetti, Riva, and Rothblum, Refereed Delegation of Computation",
             year=2013,
             url="https://doi.org/10.1016/j.ic.2013.03.003",
-            fidelity="binary-search localization adaptation",
+            fidelity="structural projection",
             comparable_component="Binary search over committed computation configurations to isolate disagreement.",
-            excluded_components="Original refereed-delegation protocol, cryptographic game, and server economics.",
+            excluded_components="Refereed-delegation protocol, cryptographic game, and server economics.",
             builder=rdoc_binary_search_policy,
-            baseline_class="optimistic-system",
+            baseline_class="binary-localization",
         ),
         LiteratureBaselineSpec(
             key="truebit_verification_game",
-            display_name="TrueBit verification game (common-trace adaptation)",
+            display_name="TrueBit binary verification game (ordered-trace projection)",
             paper="Teutsch and Reitwiessner, A Scalable Verification Solution for Blockchains",
             year=2023,
             url="https://doi.org/10.1142/9789811278631_0015",
-            fidelity="binary-search verification-game adaptation",
+            fidelity="structural projection",
             comparable_component="Binary localization of an incorrect execution to one disputed transition.",
-            excluded_components="Incentive layer, deposits, task market, and full TrueBit protocol economics.",
+            excluded_components="Incentive layer, deposits, task market, and protocol economics.",
             builder=truebit_verification_game_policy,
-            baseline_class="optimistic-system",
+            baseline_class="binary-localization",
         ),
         LiteratureBaselineSpec(
             key="arbitrum_ivp",
-            display_name="Arbitrum-IVP (common-trace adaptation)",
+            display_name="Arbitrum binary challenge localization (ordered-trace projection)",
             paper="Kalodner et al., Arbitrum: Scalable, Private Smart Contracts",
             year=2018,
             url="https://www.usenix.org/conference/usenixsecurity18/presentation/kalodner",
-            fidelity="structural adaptation",
+            fidelity="structural projection",
             comparable_component="Binary challenge localization to one disputed transition.",
-            excluded_components="Arbitrum VM economics, staking, and full assertion protocol.",
+            excluded_components="VM economics, staking, assertion protocol, and chain-specific one-step proof plumbing.",
             builder=arbitrum_ivp_policy,
-            baseline_class="optimistic-system",
+            baseline_class="binary-localization",
         ),
         LiteratureBaselineSpec(
-            key="opml_phase1",
-            display_name="opML Phase-1 (common-trace adaptation)",
+            key="opml_single_phase",
+            display_name="opML single-phase VM dispute (requires microinstruction trace)",
             paper="Conway et al., opML: Optimistic Machine Learning on Blockchain",
             year=2024,
             url="https://arxiv.org/abs/2401.17555",
-            fidelity="phase-1 adaptation",
-            comparable_component="Operator-level bisection to one disputed DNN operator.",
-            excluded_components=(
-                "Second VM-microinstruction dispute phase and original-chain economics; "
-                "not measured, therefore not fabricated."
-            ),
-            builder=opml_phase1_policy,
-            baseline_class="optimistic-ml",
+            fidelity="faithful localization level when microinstruction trace is supplied",
+            comparable_component="Bisection over VM microinstructions followed by one-step arbitration.",
+            excluded_components="Chain economics and any microinstruction measurements not supplied to the artifact.",
+            builder=opml_single_phase_policy,
+            baseline_class="conditional-full-level",
+            claim_guard="execute only on a VM-microinstruction trace; otherwise skip",
+        ),
+        LiteratureBaselineSpec(
+            key="opml_outer_phase_projection",
+            display_name="opML outer-phase operator projection (not full two-phase opML)",
+            paper="Conway et al., opML: Optimistic Machine Learning on Blockchain",
+            year=2024,
+            url="https://arxiv.org/abs/2401.17555",
+            fidelity="outer-phase structural projection",
+            comparable_component="High-level/operator bisection of multi-phase opML.",
+            excluded_components="Inner VM-microinstruction bisection/arbitration and chain economics.",
+            builder=opml_outer_phase_projection_policy,
+            baseline_class="protocol-projection",
+            claim_guard="projection only; never label as full opML",
         ),
         LiteratureBaselineSpec(
             key="agatha_gpp_chain",
-            display_name="Agatha-GPP chain projection (common-trace adaptation)",
+            display_name="Agatha GPP ordered-chain projection (not full DAG GPP)",
             paper="Zheng et al., Agatha: Smart Contract for DNN Computation",
             year=2021,
             url="https://arxiv.org/abs/2105.04919",
-            fidelity="chain projection of GPP",
-            comparable_component="Graph-node pinpointing restricted to the ordered chain case.",
+            fidelity="ordered-chain structural projection",
+            comparable_component="Pinpoint localization when the computation graph is restricted to a chain.",
             excluded_components="General DAG GPP, XCE machinery, and Ethereum-specific arbitration.",
             builder=agatha_gpp_chain_policy,
-            baseline_class="optimistic-ml",
+            baseline_class="protocol-projection",
+            claim_guard="projection only; never label as full Agatha reproduction",
         ),
         LiteratureBaselineSpec(
             key="kirkpatrick_klawe_minimax",
-            display_name="Alphabetic Minimax Tree (Kirkpatrick-Klawe objective adaptation)",
+            display_name="Alphabetic minimax objective (Kirkpatrick-Klawe)",
             paper="Kirkpatrick and Klawe, Alphabetic Minimax Trees",
             year=1985,
             url="https://doi.org/10.1137/0214039",
-            fidelity="exact objective reduction under forced atomic leaves and constant query cost",
+            fidelity="exact objective reduction",
             comparable_component=(
-                "Ordered binary tree minimizing max_t(A_t + q d_t), equivalent after "
-                "scaling to the paper's max_t(w_t + d_t) objective."
+                "Ordered binary fixed-leaf tree minimizing max_t(A_t + q d_t) under constant query cost."
             ),
-            excluded_components=(
-                "Historical construction algorithm itself; this repository uses an independent "
-                "exact interval DP for the mathematically identical objective."
-            ),
+            excluded_components="Historical construction algorithm; the artifact uses an independent exact interval DP.",
             builder=kirkpatrick_klawe_atomic_policy,
             baseline_class="classical-tree-theory",
+            claim_guard="exact objective adaptation under mechanically checked preconditions",
         ),
         LiteratureBaselineSpec(
             key="hu_tucker_mean",
-            display_name="Optimal Alphabetic Mean Tree (Hu-Tucker objective adaptation)",
+            display_name="Alphabetic weighted-path objective (Hu-Tucker)",
             paper="Hu and Tucker, Optimal Computer Search Trees and Variable-Length Alphabetical Codes",
             year=1971,
             url="https://doi.org/10.1137/0121057",
-            fidelity="exact objective reduction under forced atomic leaves and constant query cost",
-            comparable_component=(
-                "Ordered fixed-leaf tree minimizing weighted path length; uniform fault weights "
-                "are used unless an explicit distribution is supplied."
-            ),
-            excluded_components=(
-                "Historical Hu-Tucker construction algorithm itself; this repository uses an "
-                "independent exact interval DP for the same objective."
-            ),
+            fidelity="exact objective reduction",
+            comparable_component="Ordered fixed-leaf tree minimizing weighted path length under constant query cost.",
+            excluded_components="Historical Hu-Tucker construction algorithm; independent exact interval DP is used.",
             builder=hu_tucker_atomic_policy,
             baseline_class="classical-tree-theory",
+            claim_guard="exact objective adaptation under mechanically checked preconditions",
         ),
         LiteratureBaselineSpec(
             key="zkopml_operator",
-            display_name="zk-OPML operator dispute (reproduced-ZK adaptation)",
+            display_name="zk-OPML operator localization + measured ZK terminal projection",
             paper="Kersic and Turkanovic, zk-OPML: Using zero-knowledge proofs to optimize OPML",
             year=2026,
             url="https://doi.org/10.1007/s44443-026-00573-1",
-            fidelity="operator-localization plus reproduced atomic-ZK adaptation",
-            comparable_component=(
-                "Binary search over the operator sequence followed by ZK verification of the "
-                "isolated operator."
-            ),
-            excluded_components=(
-                "Original smart-contract/finality economics and any ZK cost not independently "
-                "reproduced in this artifact."
-            ),
+            fidelity="operator-localization plus measured ZK-terminal projection",
+            comparable_component="Binary/operator localization followed by ZK verification of the isolated operator.",
+            excluded_components="Any proving, finality, gas, or protocol cost not explicitly reproduced in the input cost oracle.",
             builder=zkopml_operator_policy,
             baseline_class="hybrid-optimistic-zk",
+            claim_guard="skip unless every atomic operator has an explicit zk-proof-capable terminal cost",
         ),
     )
 
 
 def policy_signature(policy: Policy) -> tuple:
-    """Canonical signature used to detect numerically duplicate policy trees."""
-
     return tuple(
         (i, j, action.kind, action.backend or "", -1 if action.split is None else action.split)
         for (i, j), action in sorted(policy.items())
@@ -248,10 +282,10 @@ def provenance_rows() -> list[dict]:
                 "comparable_component": spec.comparable_component,
                 "excluded_components": spec.excluded_components,
                 "common_environment": (
-                    "same ordered trace, same measured terminal costs when required, same corrected "
-                    "Merkle query cost, same fault positions as Pareto-HNDT"
+                    "same ordered trace, same admissible terminal/query cost oracle, "
+                    "same fault positions as Pareto-DPS"
                 ),
-                "claim_guard": "common-testbed/objective adaptation; not a full-system reproduction",
+                "claim_guard": spec.claim_guard,
             }
         )
     return rows
